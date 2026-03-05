@@ -67,15 +67,19 @@ $border-radius: 0.25rem;
 }
 
 // =====================
-// Navigation buttons (TOC area)
+// Floating nav buttons (bottom-right)
 // =====================
-.book-nav {
+.floating-nav {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
-  margin-top: 1rem;
+  z-index: 50;
 }
 
-.book-nav-btn {
+.floating-nav-btn {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
@@ -86,10 +90,16 @@ $border-radius: 0.25rem;
   align-items: center;
   justify-content: center;
   color: var(--body-font-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: background 0.2s ease;
 
   &:hover {
     background: var(--gray-500);
   }
+}
+
+.floating-toggle {
+  display: none;
 }
 
 // =====================
@@ -233,6 +243,10 @@ $border-radius: 0.25rem;
     font-size: $font-size-14;
     border: 1px solid var(--gray-200);
     border-radius: 4px;
+
+    img, svg {
+      display: none;
+    }
   }
 }
 
@@ -428,78 +442,94 @@ $border-radius: 0.25rem;
 }
 
 // =====================
-// Post footer tags
+// Post footer tags (pill style)
 // =====================
 .post-footer-tags {
   margin-top: $padding-48;
-  padding-top: $padding-16;
-  border-top: 1px solid var(--gray-200);
+  padding-top: $padding-24;
 
-  h3 {
-    font-weight: 600;
-    margin-bottom: $padding-8;
+  .tag-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $padding-8;
   }
 
-  .tag-chip {
+  .tag-pill {
     display: inline-block;
-    padding: $padding-4 $padding-8;
-    background: var(--gray-100);
-    border: 1px solid var(--gray-200);
-    border-radius: $border-radius;
+    flex: none;
+    padding: $padding-8 $padding-16;
+    background: var(--gray-200);
+    border-radius: 2rem;
     color: var(--body-font-color);
     font-size: $font-size-14;
-    margin-right: $padding-4;
-    margin-bottom: $padding-4;
+    font-weight: 500;
+    transition: background 0.2s ease;
+
+    img, svg {
+      display: none;
+    }
 
     &:hover {
-      border-color: var(--color-link);
-      color: var(--color-link);
+      background: var(--color-link);
+      color: white;
     }
   }
 }
 
 // =====================
-// Post prev/next navigation
+// Post prev/next navigation (card style)
 // =====================
 .post-prev-next {
   display: flex;
-  justify-content: space-between;
   gap: $padding-16;
   margin-top: $padding-24;
-  padding-top: $padding-24;
-  border-top: 1px solid var(--gray-200);
 }
 
-.post-prev, .post-next {
+.post-nav-card {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: $padding-4;
-  padding: $padding-8;
-  max-width: 45%;
+  padding: $padding-16;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
   color: var(--body-font-color);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
-    color: var(--color-link);
+    border-color: var(--color-link);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
 
-  &.disabled {
-    visibility: hidden;
-  }
-}
+  &.no-link {
+    cursor: default;
 
-.post-next {
-  text-align: right;
-  margin-left: auto;
+    &:hover {
+      border-color: var(--gray-200);
+      box-shadow: none;
+    }
+
+    .empty-text {
+      color: var(--gray-500);
+      font-weight: 400;
+    }
+  }
+
+  &.post-next {
+    text-align: right;
+  }
 }
 
 .post-nav-label {
   font-size: $font-size-12;
   color: var(--gray-500);
+  font-weight: 500;
 }
 
 .post-nav-title {
   font-size: $font-size-14;
-  font-weight: 500;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -615,6 +645,17 @@ $border-radius: 0.25rem;
 }
 
 // =====================
+// Sidebar sticky to edges
+// =====================
+.book-menu .book-menu-content {
+  left: 0;
+}
+
+.book-toc .book-toc-content {
+  right: 0;
+}
+
+// =====================
 // Mobile responsive
 // =====================
 @media screen and (max-width: $mobile-breakpoint) {
@@ -639,11 +680,42 @@ $border-radius: 0.25rem;
     flex-direction: column;
   }
 
-  .post-prev, .post-next {
-    max-width: 100%;
-  }
-
   .post-header-title {
     font-size: $font-size-24;
+  }
+
+  // Floating nav: hidden by default, toggle with + button
+  .floating-nav {
+    display: none;
+    bottom: 5rem;
+    right: 1.5rem;
+
+    &.open {
+      display: flex;
+    }
+  }
+
+  .floating-toggle {
+    display: flex;
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: var(--color-link);
+    color: white;
+    border: none;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    z-index: 51;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease;
+
+    &.open {
+      transform: rotate(45deg);
+    }
   }
 }
