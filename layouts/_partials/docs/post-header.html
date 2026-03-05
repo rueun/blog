@@ -1,0 +1,36 @@
+{{ if eq .Section "posts" }}
+<div class="post-header">
+  {{ if .Params.categories }}
+  <div class="post-header-categories">
+    {{ $parentCategory := partial "categories/value-first" .Params.categories }}
+    {{- if $parentCategory -}}
+      <a href="{{ "/categories/" | relURL }}{{ $parentCategory | urlize }}/" class="category">
+        <i class="fa-solid fa-folder"></i> {{ $parentCategory }}
+      </a>
+      {{ $childCategory := partial "categories/value-second" .Params.categories }}
+      {{- if $childCategory -}}
+        <span class="category-separator">/</span>
+        <a href="{{ "/categories/" | relURL }}{{ $parentCategory | urlize }}/{{ $childCategory | urlize }}/" class="category">
+          <i class="fa-solid fa-file"></i> {{ $childCategory }}
+        </a>
+      {{- end -}}
+    {{- end -}}
+  </div>
+  {{ end }}
+
+  <h1 class="post-header-title">{{ .Title }}</h1>
+
+  <div class="post-header-meta">
+    <time datetime="{{ .Date.Format "2006-01-02" }}">
+      {{ .Date.Format "2006년 01월 02일" }}
+    </time>
+  </div>
+
+  {{ if .Params.cover }}
+  <div class="post-header-cover">
+    <img src="{{ .Params.cover | absURL }}" alt="Cover" />
+  </div>
+  {{ end }}
+</div>
+<hr />
+{{ end }}

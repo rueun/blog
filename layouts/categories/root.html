@@ -1,0 +1,17 @@
+{{ define "main" }}
+<article class="markdown book-article">
+  <div class="list-header">
+    <h1><i class="fa-solid fa-folder-tree"></i> Categories</h1>
+  </div>
+
+  <div class="category-chips">
+    {{ range .Pages }}
+    <div class="category-item">
+      <a href="{{ .RelPermalink }}" class="category-link">
+        <span class="category-name"><i class="fa-solid fa-folder"></i> {{ .Title }}</span>
+      </a>
+    </div>
+    {{ end }}
+  </div>
+</article>
+{{ end }}

@@ -1,0 +1,12 @@
+{{ if and (eq .Section "posts") .Params.tags }}
+<div class="post-footer-tags">
+  <h3><i class="fa-solid fa-tags"></i> Tags</h3>
+  <div class="tag-chips">
+    {{ range .Params.tags }}
+    <a href="{{ "/tags/" | relURL }}{{ . | urlize }}/" class="tag-chip">
+      #{{ . }}
+    </a>
+    {{ end }}
+  </div>
+</div>
+{{ end }}

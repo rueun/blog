@@ -3,6 +3,11 @@ title: Rueun's Blog
 theme: hugo-book
 
 disablePathToLower: true
+paginate: 10
+
+taxonomies:
+  category: categories
+  tag: tags
 
 markup:
   goldmark:
@@ -18,6 +23,12 @@ menu:
     - name: "Github"
       url: "https://github.com/rueun"
       weight: 10
+    - name: "Tags"
+      url: "/tags/"
+      weight: 20
+    - name: "Categories"
+      url: "/categories/"
+      weight: 30
 
 params:
   BookTheme: "light"
@@ -25,8 +36,9 @@ params:
   BookSearch: true
   BookSection: docs
   BookDateFormat: "January 2, 2006"
-  BookComments: false
+  BookComments: true
 
   BookMenu:
     profileImage: "https://avatars.githubusercontent.com/u/64256409"
     githubLink: "https://github.com/rueun"
+    recentPosts: true

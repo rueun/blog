@@ -1,0 +1,15 @@
+{{ define "main" }}
+<article class="markdown book-article">
+  {{ partial "docs/post-header" . }}
+  {{- .Content -}}
+</article>
+{{ end }}
+
+{{ define "toc" }}
+  {{ partial "docs/toc" . }}
+{{ end }}
+
+{{ define "footer" }}
+  {{ partial "docs/post-tags" . }}
+  {{ partial "docs/post-prev-next" . }}
+{{ end }}
