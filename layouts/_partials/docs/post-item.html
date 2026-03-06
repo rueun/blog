@@ -40,7 +40,7 @@
       {{ if .Params.tags }}
       <div class="post-tags">
         {{ range first 5 .Params.tags }}
-        <a href="{{ "/tags/" | relURL }}{{ . | urlize }}/" class="tag">#{{ . }}</a>
+        <a href="{{ "/tags/" | relURL }}{{ . | urlize }}/" class="tag"><i class="fa-solid fa-tag"></i> {{ . }}</a>
         {{ end }}
       </div>
       {{ end }}

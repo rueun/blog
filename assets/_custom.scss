@@ -235,14 +235,20 @@ $border-radius: 0.25rem;
   white-space: nowrap;
 
   .tag {
-    display: inline-block;
+    display: inline-flex;
     flex: none;
+    align-items: center;
+    gap: $padding-4;
     background: var(--gray-100);
     color: var(--body-font-color);
     padding: $padding-4 $padding-8;
     font-size: $font-size-14;
     border: 1px solid var(--gray-200);
     border-radius: 4px;
+
+    i {
+      font-size: $font-size-12;
+    }
 
     img, svg {
       display: none;
@@ -361,38 +367,167 @@ $border-radius: 0.25rem;
 }
 
 // =====================
-// Category chips
+// Category tree menu (sidebar)
 // =====================
-.category-chips {
+.book-categories {
+  margin: $padding-16 0;
+  padding-bottom: $padding-16;
+  border-bottom: 1px solid var(--gray-200);
+
+  i.fa-file, i.fa-folder, i.fa-chevron-down {
+    font-size: $font-size-14;
+    transition: transform 0.2s ease;
+    max-width: $font-size-18;
+  }
+
+  .category-count {
+    font-size: $font-size-12;
+    color: var(--gray-500);
+    white-space: nowrap;
+    margin-left: $padding-4;
+  }
+
+  .categories-toggle {
+    display: flex;
+    align-items: center;
+    padding: $padding-4 0;
+    cursor: pointer;
+
+    a {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: $padding-4;
+    }
+
+    .categories-arrow {
+      margin-left: auto;
+      transition: transform 0.2s ease;
+    }
+  }
+
+  .categories-link {
+    padding: $padding-4 0;
+
+    &:hover {
+      color: var(--color-link);
+    }
+
+    a {
+      display: flex;
+      align-items: center;
+      gap: $padding-4;
+    }
+  }
+
+  .categories-menu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    > li {
+      padding-left: $padding-8;
+    }
+
+    ul {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+
+      li {
+        padding-left: $padding-16;
+      }
+    }
+  }
+
+  // 전체 카테고리 펼치기/접기
+  #categories-control:checked + .categories-toggle .categories-arrow {
+    transform: rotate(180deg);
+  }
+
+  #categories-control:checked ~ .categories-menu {
+    max-height: 1000px;
+  }
+
+  // 부모-자식 카테고리 펼치기/접기
+  input[id^="cat-"]:checked + .categories-toggle .categories-arrow {
+    transform: rotate(180deg);
+  }
+
+  input[id^="cat-"]:checked + .categories-toggle + ul {
+    max-height: 500px;
+  }
+}
+
+// =====================
+// Category page
+// =====================
+.category-page-header {
+  text-align: center;
+  padding-bottom: $padding-24;
+  margin-bottom: $padding-24;
+  border-bottom: 2px solid var(--gray-200);
+
+  h1 {
+    font-size: $font-size-40;
+    font-weight: 700;
+    margin-bottom: $padding-8;
+
+    i {
+      margin-right: $padding-8;
+    }
+  }
+
+  .category-page-count {
+    color: var(--color-link);
+    font-weight: 700;
+    font-size: $font-size-20;
+  }
+}
+
+.category-page-children {
+  margin-bottom: $padding-48;
+  padding-bottom: $padding-24;
+  border-bottom: 2px solid var(--gray-200);
+
+  h2 {
+    font-weight: 600;
+    margin-bottom: $padding-16;
+  }
+}
+
+.category-page-chips {
   display: flex;
   flex-wrap: wrap;
   gap: $padding-8;
 }
 
-.category-item {
-  .category-link {
-    display: inline-flex;
-    align-items: center;
-    gap: $padding-4;
-    padding: $padding-8 $padding-16;
-    background: var(--gray-100);
-    border: 1px solid var(--gray-200);
-    border-radius: $border-radius;
-    color: var(--body-font-color);
+.category-page-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: $padding-4;
+  padding: $padding-8 $padding-16;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: $border-radius;
+  color: var(--body-font-color);
+  font-size: $font-size-14;
+  font-weight: 500;
 
-    &:hover {
-      border-color: var(--color-link);
-      color: var(--color-link);
-    }
+  .chip-count {
+    color: var(--gray-500);
   }
-}
 
-.categories-section {
-  margin-bottom: $padding-48;
-
-  h2 {
-    font-weight: 600;
-    margin-bottom: $padding-16;
+  &:hover {
+    border-color: var(--color-link);
+    color: var(--color-link);
   }
 }
 

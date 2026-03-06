@@ -12,26 +12,23 @@
     {{ end }}
   {{ end }}
 
-  <div class="list-header">
+  <div class="category-page-header">
     <h1><i class="fa-solid fa-file"></i> {{ .Title }}</h1>
-    <p>전체 글 <em class="list-count">{{ len $pages }}</em></p>
+    <p><em class="category-page-count">{{ len $pages }}</em> posts</p>
   </div>
 
   {{ if .Params.parent }}
-  <div class="categories-section">
-    <h2>상위 카테고리</h2>
-    <div class="category-chips">
-      <div class="category-item">
-        <a href="{{ "/categories/" | relURL }}{{ .Params.parent | urlize }}/" class="category-link">
-          <span class="category-name"><i class="fa-solid fa-folder-open"></i> {{ .Params.parent }}</span>
-        </a>
-      </div>
+  <div class="category-page-children">
+    <h2>Parent Category</h2>
+    <div class="category-page-chips">
+      <a href="{{ "/categories/" | relURL }}{{ .Params.parent | urlize }}/" class="category-page-chip">
+        <i class="fa-solid fa-folder-open"></i> {{ .Params.parent }}
+      </a>
     </div>
   </div>
   {{ end }}
 
   {{ if $pages }}
-  <div class="post-list">
     {{ $paginate := .Paginate $pages 10 }}
     <div class="post-list">
       {{ range $paginate.Pages }}
@@ -40,7 +37,6 @@
     </div>
 
     {{ partial "docs/pagination.html" $paginate }}
-  </div>
   {{ else }}
   <div class="post-list empty-list">
     <p>이 카테고리에 게시글이 없습니다.</p>

@@ -3,7 +3,7 @@
   <div class="tag-pills">
     {{ range .Params.tags }}
     <a href="{{ "/tags/" | relURL }}{{ . | urlize }}/" class="tag-pill">
-      #{{ . }}
+      <i class="fa-solid fa-tag"></i> {{ . }}
     </a>
     {{ end }}
   </div>
