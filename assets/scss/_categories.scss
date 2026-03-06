@@ -91,7 +91,7 @@
           top: 0;
           bottom: 0;
           width: 1px;
-          background: var(--gray-300);
+          background: var(--gray-500);
         }
 
         &:last-child::before {
@@ -105,7 +105,7 @@
           top: 1em;
           width: 12px;
           height: 1px;
-          background: var(--gray-300);
+          background: var(--gray-500);
         }
       }
     }
@@ -132,7 +132,7 @@
         top: 0;
         bottom: 0;
         width: 1px;
-        background: var(--gray-300);
+        background: var(--gray-500);
       }
 
       &:last-child::before {
@@ -146,7 +146,7 @@
         top: 1em;
         width: 12px;
         height: 1px;
-        background: var(--gray-300);
+        background: var(--gray-500);
       }
     }
 
