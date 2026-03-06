@@ -1,10 +1,25 @@
 // =====================
+// Content & TOC top padding
+// =====================
+.book-page {
+  padding-top: 1rem !important;
+}
+
+.book-toc .book-toc-content {
+  padding-top: 5rem !important;
+}
+
+// =====================
 // TOC highlight
 // =====================
 #TableOfContents {
   a.active {
     color: var(--color-link);
     font-weight: bold;
+  }
+
+  ul {
+    border-left: 1px solid var(--gray-200);
   }
 }
 

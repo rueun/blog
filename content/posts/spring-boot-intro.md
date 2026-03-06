@@ -1,7 +1,13 @@
 ---
 title: "Spring Boot 시작하기"
 date: 2026-03-05
+cover: "https://dl.dropboxusercontent.com/scl/fi/w0zho4wlgq6m8db5mvn9k/hugo-00-cover.webp?rlkey=et2tlzgb0h6blgf8klzbqjxem&raw=1"
 description: "Spring Boot로 웹 애플리케이션을 시작하는 방법을 소개합니다. 프로젝트 생성부터 간단한 API 구현까지 다룹니다."
+summary: |
+  Spring Boot는 Spring Framework 기반의 경량 프레임워크로, 자동 설정과 내장 서버를 제공하여 빠르게 웹 애플리케이션을 구축할 수 있습니다.
+  - **자동 설정**: 최소한의 설정으로 애플리케이션 실행 가능
+  - **내장 서버**: Tomcat, Jetty 등 별도 서버 설치 불필요
+  - **스타터 의존성**: 필요한 라이브러리를 한 번에 관리
 categories:
   - Development
   - Spring
