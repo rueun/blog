@@ -7,12 +7,12 @@
     <div class="post-categories">
       {{ $parentCategory := partial "categories/value-first" .Params.categories }}
       {{- if $parentCategory -}}
-        <a href="{{ "/categories/" | relURL }}{{ $parentCategory | urlize }}/" class="category">
+        <a href="{{ "/search/" | relURL }}?category1={{ $parentCategory | urlize }}" class="category">
           <i class="fa-solid fa-folder"></i> {{ $parentCategory }}
         </a>
         {{ $childCategory := partial "categories/value-second" .Params.categories }}
         {{- if $childCategory -}}
-        <a href="{{ "/categories/" | relURL }}{{ $parentCategory | urlize }}/{{ $childCategory | urlize }}/" class="category">
+        <a href="{{ "/search/" | relURL }}?category1={{ $parentCategory | urlize }}&category2={{ $childCategory | urlize }}" class="category">
         <i class="fa-solid fa-file"></i> {{ $childCategory }}
         </a>
         {{- end -}}
@@ -40,7 +40,7 @@
       {{ if .Params.tags }}
       <div class="post-tags">
         {{ range first 5 .Params.tags }}
-        <a href="{{ "/tags/" | relURL }}{{ . | urlize }}/" class="tag"><i class="fa-solid fa-tag"></i> {{ . }}</a>
+        <a href="{{ "/search/" | relURL }}?tags={{ . | urlize }}" class="tag"><i class="fa-solid fa-tag"></i> {{ . }}</a>
         {{ end }}
       </div>
       {{ end }}

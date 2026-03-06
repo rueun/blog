@@ -52,6 +52,140 @@
     <i class="fa-solid fa-plus"></i>
   </button>
 
+  <script src="/fuse.min.js"></script>
+  <!-- Search modal -->
+  <div class="search-modal-overlay" id="search-modal-overlay">
+    <div class="search-modal">
+      <div class="search-modal-input-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="search-modal-input" placeholder="검색어를 입력하세요" autocomplete="off" />
+        <kbd>ESC</kbd>
+      </div>
+      <div class="search-modal-results" id="search-modal-results"></div>
+      <div class="search-modal-footer">
+        <span><kbd>/</kbd> 로 검색</span>
+        <span><kbd>Enter</kbd> 검색 페이지로 이동</span>
+      </div>
+    </div>
+  </div>
+  {{ $searchDataFile := printf "%s.search-data.json" .Language.Lang }}
+  {{ $searchData := resources.Get "search-data.json" | resources.ExecuteAsTemplate $searchDataFile . | resources.Minify | resources.Fingerprint }}
+  <script>
+  (function() {
+    var overlay = document.getElementById('search-modal-overlay');
+    var input = document.getElementById('search-modal-input');
+    var results = document.getElementById('search-modal-results');
+    var fuseIndex = null;
+    var selectedIndex = -1;
+
+    function openModal() {
+      overlay.classList.add('open');
+      input.value = '';
+      results.innerHTML = '';
+      selectedIndex = -1;
+      setTimeout(function() { input.focus(); }, 50);
+    }
+
+    function closeModal() {
+      overlay.classList.remove('open');
+    }
+
+    function initFuse() {
+      if (fuseIndex) return Promise.resolve();
+      return fetch('{{ $searchData.RelPermalink }}')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          fuseIndex = new Fuse(data, {
+            includeScore: true,
+            threshold: 0.3,
+            ignoreLocation: true,
+            keys: [
+              { name: 'title', weight: 0.7 },
+              { name: 'content', weight: 0.2 },
+              { name: 'description', weight: 0.1 }
+            ]
+          });
+        });
+    }
+
+    function search() {
+      results.innerHTML = '';
+      selectedIndex = -1;
+      if (!input.value.trim()) return;
+      initFuse().then(function() {
+        var hits = fuseIndex.search(input.value.trim()).slice(0, 8);
+        hits.forEach(function(hit, i) {
+          var a = document.createElement('a');
+          a.className = 'search-modal-item';
+          a.href = hit.item.href;
+          var cats = (hit.item.categories || []).join(' / ');
+          a.innerHTML = '<div class="search-modal-item-title">' + hit.item.title + '</div>' +
+            '<div class="search-modal-item-meta">' + hit.item.date + (cats ? ' · ' + cats : '') + '</div>';
+          results.appendChild(a);
+        });
+        if (hits.length === 0) {
+          results.innerHTML = '<div style="padding:1rem 1.5rem;color:var(--gray-500);font-size:0.875rem;">검색 결과가 없습니다.</div>';
+        }
+      });
+    }
+
+    function updateSelection() {
+      var items = results.querySelectorAll('.search-modal-item');
+      items.forEach(function(item, i) {
+        item.classList.toggle('active', i === selectedIndex);
+      });
+    }
+
+    // "/" key to open
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        openModal();
+      }
+    });
+
+    // ESC to close
+    document.addEventListener('keydown', function(e) {
+      if (!overlay.classList.contains('open')) return;
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Click overlay to close
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeModal();
+    });
+
+    // Search on input
+    var debounceTimer;
+    input.addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(search, 200);
+    });
+
+    // Keyboard navigation
+    input.addEventListener('keydown', function(e) {
+      var items = results.querySelectorAll('.search-modal-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+        updateSelection();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        updateSelection();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+          window.location.href = items[selectedIndex].href;
+        } else if (input.value.trim()) {
+          window.location.href = '/search/?query=' + encodeURIComponent(input.value.trim());
+        }
+      }
+    });
+  })();
+  </script>
+
   {{ partial "docs/inject/body" . }}
 </body>
 </html>

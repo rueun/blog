@@ -1,25 +1,515 @@
 {{ define "main" }}
+{{ $searchDataFile := printf "%s.search-data.json" .Language.Lang }}
+{{ $searchData := resources.Get "search-data.json" | resources.ExecuteAsTemplate $searchDataFile . | resources.Minify | resources.Fingerprint }}
+
 <article class="markdown book-article">
-  <div class="search-header">
-    <h1>검색 결과</h1>
-    <div class="search-query-info">
-      <p id="search-query-display"></p>
+  <div class="search-page">
+    {{/* Dynamic header area */}}
+    <div class="search-header" id="search-header">
+      <h1 id="search-title">검색 결과</h1>
+      <p id="search-subtitle"></p>
     </div>
+
+    <hr />
+
+    {{/* Search filter */}}
+    <div class="search-filter" id="search-filter">
+      <div class="search-input-row">
+        <div class="search-input-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="search-page-input" placeholder="검색어를 입력하세요" autocomplete="off" />
+        </div>
+        <button class="search-btn" id="search-btn">검색</button>
+      </div>
+      <div class="search-filter-toggle-row">
+        <button class="search-filter-toggle" id="search-filter-toggle">
+          <i class="fa-solid fa-sliders"></i> 필터
+        </button>
+      </div>
+      <div class="search-advanced-filter" id="search-advanced-filter" style="display:none;">
+        <div class="search-filter-group">
+          <label>카테고리</label>
+          <select id="filter-category1">
+            <option value="">전체</option>
+          </select>
+          <select id="filter-category2" style="display:none;">
+            <option value="">전체</option>
+          </select>
+        </div>
+        <div class="search-filter-group">
+          <label>태그</label>
+          <div class="search-tag-chips" id="filter-tags"></div>
+        </div>
+      </div>
+    </div>
+
+    {{/* Taxonomy chips area (shown for category/tag browsing) */}}
+    <div class="search-taxonomies" id="search-taxonomies" style="display:none;"></div>
+
+    {{/* Hidden pre-rendered data */}}
+    <div id="search-data" style="display:none;">
+      {{- $pages := where .Site.RegularPages "Section" "posts" -}}
+      {{- range $index, $page := $pages.ByDate.Reverse -}}
+        <div class="search-item" data-id="{{ $index }}"
+             data-categories="{{ delimit ($page.Params.categories | default slice) "," }}"
+             data-tags="{{ delimit ($page.Params.tags | default slice) "," }}"
+             data-date="{{ $page.Date.Format "2006-01-02" }}">
+          {{ partial "docs/post-item.html" $page }}
+        </div>
+      {{- end -}}
+    </div>
+
+    {{/* Results */}}
+    <div class="post-list" id="search-results"></div>
+
+    {{/* No results */}}
+    <div class="search-no-results" id="search-no-results" style="display:none;">
+      <p>검색 결과가 없습니다.</p>
+    </div>
+
+    {{/* Pagination */}}
+    <div id="search-pagination"></div>
   </div>
-
-  <div id="search-no-results" class="search-no-results hidden">
-    <p>검색 결과가 없습니다.</p>
-  </div>
-
-  <div class="search-base" style="display: none;">
-    {{- $pages := where .Site.RegularPages "Params.bookSearchExclude" "!=" true -}}
-    {{- range $pages.ByDate.Reverse -}}
-      {{ partial "docs/post-item.html" . }}
-    {{- end -}}
-  </div>
-
-  <div class="post-list search-results"></div>
-
-  <div id="search-pagination"></div>
 </article>
+
+<script>
+(function() {
+  const SEARCH_DATA_URL = '{{ $searchData.RelPermalink }}';
+  const PAGE_SIZE = 10;
+
+  // DOM elements
+  const searchInput = document.getElementById('search-page-input');
+  const searchBtn = document.getElementById('search-btn');
+  const searchTitle = document.getElementById('search-title');
+  const searchSubtitle = document.getElementById('search-subtitle');
+  const searchResults = document.getElementById('search-results');
+  const searchNoResults = document.getElementById('search-no-results');
+  const searchPagination = document.getElementById('search-pagination');
+  const searchData = document.getElementById('search-data');
+  const searchTaxonomies = document.getElementById('search-taxonomies');
+  const filterToggle = document.getElementById('search-filter-toggle');
+  const advancedFilter = document.getElementById('search-advanced-filter');
+  const filterCategory1 = document.getElementById('filter-category1');
+  const filterCategory2 = document.getElementById('filter-category2');
+  const filterTags = document.getElementById('filter-tags');
+
+  let fuseIndex = null;
+  let allPosts = null;
+  let categoriesData = {};
+  let tagsData = {};
+
+  // Parse URL params
+  function getState() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      query: params.get('query') || '',
+      category1: params.get('category1') || '',
+      category2: params.get('category2') || '',
+      tags: params.get('tags') ? params.get('tags').split(',').map(t => t.trim()).filter(Boolean) : [],
+      page: Math.max(1, parseInt(params.get('page')) || 1)
+    };
+  }
+
+  // Update URL without reload
+  function updateURL(state) {
+    const params = new URLSearchParams();
+    if (state.query) params.set('query', state.query);
+    if (state.category1) params.set('category1', state.category1);
+    if (state.category2) params.set('category2', state.category2);
+    if (state.tags.length) params.set('tags', state.tags.join(','));
+    if (state.page > 1) params.set('page', state.page);
+    const url = params.toString() ? '/search/?' + params.toString() : '/search/';
+    window.history.replaceState(null, '', url);
+  }
+
+  // Initialize Fuse index
+  function initFuse() {
+    if (fuseIndex) return Promise.resolve();
+    return fetch(SEARCH_DATA_URL)
+      .then(r => r.json())
+      .then(data => {
+        allPosts = data;
+        fuseIndex = new Fuse(data, {
+          includeScore: true,
+          useExtendedSearch: true,
+          threshold: 0.3,
+          ignoreLocation: true,
+          keys: [
+            { name: 'title', weight: 0.7 },
+            { name: 'content', weight: 0.2 },
+            { name: 'description', weight: 0.1 }
+          ]
+        });
+
+        // Build categories/tags lookup
+        data.forEach((post, i) => {
+          const cats = post.categories || [];
+          if (cats[0]) {
+            if (!categoriesData[cats[0]]) categoriesData[cats[0]] = { ids: [], children: {} };
+            categoriesData[cats[0]].ids.push(i);
+            if (cats[1]) {
+              if (!categoriesData[cats[0]].children[cats[1]]) categoriesData[cats[0]].children[cats[1]] = [];
+              categoriesData[cats[0]].children[cats[1]].push(i);
+            }
+          }
+          (post.tags || []).forEach(tag => {
+            if (!tagsData[tag]) tagsData[tag] = [];
+            tagsData[tag].push(i);
+          });
+        });
+
+        buildFilterOptions();
+      });
+  }
+
+  function buildFilterOptions() {
+    // Category1 options
+    Object.keys(categoriesData).sort().forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat + ' (' + categoriesData[cat].ids.length + ')';
+      filterCategory1.appendChild(opt);
+    });
+  }
+
+  function updateCategory2Options(cat1) {
+    filterCategory2.innerHTML = '<option value="">전체</option>';
+    if (cat1 && categoriesData[cat1]) {
+      const children = categoriesData[cat1].children;
+      if (Object.keys(children).length > 0) {
+        filterCategory2.style.display = '';
+        Object.keys(children).sort().forEach(child => {
+          const opt = document.createElement('option');
+          opt.value = child;
+          opt.textContent = child + ' (' + children[child].length + ')';
+          filterCategory2.appendChild(opt);
+        });
+      } else {
+        filterCategory2.style.display = 'none';
+      }
+    } else {
+      filterCategory2.style.display = 'none';
+    }
+  }
+
+  function buildTagChips() {
+    filterTags.innerHTML = '';
+    const state = getState();
+    Object.keys(tagsData).sort().forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'search-tag-chip' + (state.tags.includes(tag) ? ' active' : '');
+      chip.textContent = tag;
+      chip.dataset.tag = tag;
+      chip.addEventListener('click', function() {
+        this.classList.toggle('active');
+        doSearch(1);
+      });
+      filterTags.appendChild(chip);
+    });
+  }
+
+  // Get search type
+  function getSearchType(state) {
+    const hasQuery = state.query.length > 0;
+    const hasCat1 = state.category1.length > 0;
+    const hasTags = state.tags.length > 0;
+    if (hasQuery) return (hasCat1 || hasTags) ? 'combined' : 'search';
+    if (hasCat1) return state.category2 ? 'category2' : 'category1';
+    if (hasTags) return 'tags';
+    return 'all';
+  }
+
+  // Search and filter
+  function getMatchingIds(state) {
+    let ids = new Set();
+    const type = getSearchType(state);
+
+    if (type === 'all') {
+      allPosts.forEach((_, i) => ids.add(i));
+      return ids;
+    }
+
+    // Text search
+    if (state.query) {
+      const results = fuseIndex.search(state.query);
+      results.forEach(r => ids.add(r.item.id));
+      if (!state.category1 && !state.tags.length) return ids;
+    }
+
+    // Category filter
+    let catIds = null;
+    if (state.category1 && categoriesData[state.category1]) {
+      if (state.category2 && categoriesData[state.category1].children[state.category2]) {
+        catIds = new Set(categoriesData[state.category1].children[state.category2]);
+      } else {
+        catIds = new Set(categoriesData[state.category1].ids);
+      }
+    }
+
+    // Tag filter
+    let tagIds = null;
+    if (state.tags.length > 0) {
+      const tagSets = state.tags.map(t => new Set(tagsData[t] || []));
+      tagIds = tagSets.reduce((a, b) => new Set([...a].filter(x => b.has(x))));
+    }
+
+    // Combine
+    if (state.query) {
+      if (catIds) ids = new Set([...ids].filter(x => catIds.has(x)));
+      if (tagIds) ids = new Set([...ids].filter(x => tagIds.has(x)));
+    } else {
+      if (catIds && tagIds) {
+        ids = new Set([...catIds].filter(x => tagIds.has(x)));
+      } else if (catIds) {
+        ids = catIds;
+      } else if (tagIds) {
+        ids = tagIds;
+      }
+    }
+
+    return ids;
+  }
+
+  // Update header
+  function updateHeader(state, count) {
+    const type = getSearchType(state);
+    searchTaxonomies.style.display = 'none';
+    searchTaxonomies.innerHTML = '';
+
+    switch (type) {
+      case 'search':
+        searchTitle.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> 검색 결과';
+        searchSubtitle.innerHTML = '"' + state.query + '" <em class="list-count">' + count + '</em>건';
+        break;
+      case 'category1':
+        searchTitle.innerHTML = '<i class="fa-solid fa-folder"></i> ' + state.category1;
+        searchSubtitle.innerHTML = '총 <em class="list-count">' + count + '</em>개의 글';
+        showCategoryChips(state);
+        break;
+      case 'category2':
+        searchTitle.innerHTML = '<i class="fa-solid fa-file"></i> ' + state.category2;
+        searchSubtitle.innerHTML = '총 <em class="list-count">' + count + '</em>개의 글';
+        showParentCategoryChip(state);
+        break;
+      case 'tags':
+        if (state.tags.length === 1) {
+          searchTitle.innerHTML = '<i class="fa-solid fa-tag"></i> ' + state.tags[0];
+        } else {
+          searchTitle.innerHTML = '<i class="fa-solid fa-tags"></i> 태그 검색';
+        }
+        searchSubtitle.innerHTML = '총 <em class="list-count">' + count + '</em>개의 글';
+        if (state.tags.length > 1) showTagChips(state);
+        break;
+      case 'combined':
+        searchTitle.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> 검색 결과';
+        searchSubtitle.innerHTML = '"' + state.query + '" <em class="list-count">' + count + '</em>건';
+        break;
+      default:
+        searchTitle.innerHTML = '<i class="fa-solid fa-list"></i> 전체 글';
+        searchSubtitle.innerHTML = '총 <em class="list-count">' + count + '</em>개의 글';
+    }
+  }
+
+  function showCategoryChips(state) {
+    if (!categoriesData[state.category1]) return;
+    const children = Object.keys(categoriesData[state.category1].children);
+    if (children.length === 0) return;
+    searchTaxonomies.style.display = '';
+    const title = document.createElement('h3');
+    title.textContent = '하위 카테고리';
+    searchTaxonomies.appendChild(title);
+    const wrap = document.createElement('div');
+    wrap.className = 'search-taxonomy-chips';
+    children.sort().forEach(child => {
+      const a = document.createElement('a');
+      a.className = 'search-taxonomy-chip';
+      a.href = '/search/?category1=' + encodeURIComponent(state.category1) + '&category2=' + encodeURIComponent(child);
+      a.innerHTML = '<i class="fa-solid fa-file"></i> ' + child + ' <span class="chip-count">(' + categoriesData[state.category1].children[child].length + ')</span>';
+      wrap.appendChild(a);
+    });
+    searchTaxonomies.appendChild(wrap);
+  }
+
+  function showParentCategoryChip(state) {
+    searchTaxonomies.style.display = '';
+    const title = document.createElement('h3');
+    title.textContent = '상위 카테고리';
+    searchTaxonomies.appendChild(title);
+    const wrap = document.createElement('div');
+    wrap.className = 'search-taxonomy-chips';
+    const a = document.createElement('a');
+    a.className = 'search-taxonomy-chip';
+    a.href = '/search/?category1=' + encodeURIComponent(state.category1);
+    a.innerHTML = '<i class="fa-solid fa-folder"></i> ' + state.category1;
+    wrap.appendChild(a);
+    searchTaxonomies.appendChild(wrap);
+  }
+
+  function showTagChips(state) {
+    searchTaxonomies.style.display = '';
+    const title = document.createElement('h3');
+    title.textContent = '검색 태그';
+    searchTaxonomies.appendChild(title);
+    const wrap = document.createElement('div');
+    wrap.className = 'search-taxonomy-chips';
+    state.tags.forEach(tag => {
+      const span = document.createElement('span');
+      span.className = 'search-taxonomy-chip tag-removable';
+      span.innerHTML = '<i class="fa-solid fa-tag"></i> ' + tag + ' <i class="fa-solid fa-xmark remove-tag"></i>';
+      span.querySelector('.remove-tag').addEventListener('click', function() {
+        const newTags = state.tags.filter(t => t !== tag);
+        const params = new URLSearchParams(window.location.search);
+        if (newTags.length) params.set('tags', newTags.join(','));
+        else params.delete('tags');
+        params.delete('page');
+        window.location.search = params.toString();
+      });
+      wrap.appendChild(span);
+    });
+    searchTaxonomies.appendChild(wrap);
+  }
+
+  // Display results
+  function displayResults(ids, state) {
+    searchResults.innerHTML = '';
+    searchNoResults.style.display = 'none';
+
+    const sortedIds = Array.from(ids).sort((a, b) => a - b);
+    const total = sortedIds.length;
+
+    if (total === 0) {
+      searchNoResults.style.display = '';
+      searchPagination.innerHTML = '';
+      return;
+    }
+
+    const startIndex = (state.page - 1) * PAGE_SIZE;
+    const endIndex = Math.min(startIndex + PAGE_SIZE, total);
+    const searchItems = searchData.querySelectorAll('.search-item');
+
+    const fragment = document.createDocumentFragment();
+    for (let i = startIndex; i < endIndex; i++) {
+      const item = searchItems[sortedIds[i]];
+      if (item) fragment.appendChild(item.cloneNode(true));
+    }
+    searchResults.appendChild(fragment);
+
+    renderPagination(total, state);
+  }
+
+  // Pagination
+  function renderPagination(total, state) {
+    searchPagination.innerHTML = '';
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    if (totalPages <= 1) return;
+
+    const nav = document.createElement('div');
+    nav.className = 'pagination';
+
+    // Prev
+    if (state.page > 1) {
+      const prev = document.createElement('a');
+      prev.className = 'pagination-nav pagination-link';
+      prev.href = '#';
+      prev.innerHTML = '<i class="fa-solid fa-chevron-left"></i> 이전';
+      prev.addEventListener('click', function(e) { e.preventDefault(); doSearch(state.page - 1); });
+      nav.appendChild(prev);
+    }
+
+    // Pages
+    const pages = document.createElement('div');
+    pages.className = 'pagination-pages';
+    const start = Math.max(1, state.page - 2);
+    const end = Math.min(totalPages, state.page + 2);
+    for (let i = start; i <= end; i++) {
+      const page = document.createElement('a');
+      page.className = 'pagination-page pagination-link' + (i === state.page ? ' current' : '');
+      page.href = '#';
+      page.textContent = i;
+      page.addEventListener('click', function(e) { e.preventDefault(); doSearch(i); });
+      pages.appendChild(page);
+    }
+    nav.appendChild(pages);
+
+    // Next
+    if (state.page < totalPages) {
+      const next = document.createElement('a');
+      next.className = 'pagination-nav pagination-link';
+      next.href = '#';
+      next.innerHTML = '다음 <i class="fa-solid fa-chevron-right"></i>';
+      next.addEventListener('click', function(e) { e.preventDefault(); doSearch(state.page + 1); });
+      nav.appendChild(next);
+    }
+
+    searchPagination.appendChild(nav);
+  }
+
+  // Main search function
+  function doSearch(page) {
+    const state = getState();
+    state.page = page || state.page;
+
+    // Update from input/filter UI
+    if (searchInput.value !== undefined) {
+      state.query = searchInput.value.trim();
+    }
+    state.category1 = filterCategory1.value;
+    state.category2 = filterCategory2.value;
+
+    // Get active tag chips
+    const activeChips = filterTags.querySelectorAll('.search-tag-chip.active');
+    state.tags = Array.from(activeChips).map(c => c.dataset.tag);
+
+    updateURL(state);
+
+    initFuse().then(() => {
+      const ids = getMatchingIds(state);
+      updateHeader(state, ids.size);
+      displayResults(ids, state);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  // Events
+  searchBtn.addEventListener('click', () => doSearch(1));
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doSearch(1);
+  });
+
+  filterToggle.addEventListener('click', function() {
+    const visible = advancedFilter.style.display !== 'none';
+    advancedFilter.style.display = visible ? 'none' : '';
+  });
+
+  filterCategory1.addEventListener('change', function() {
+    updateCategory2Options(this.value);
+    doSearch(1);
+  });
+  filterCategory2.addEventListener('change', () => doSearch(1));
+
+  // Initialize on load
+  const state = getState();
+  searchInput.value = state.query;
+
+  initFuse().then(() => {
+    // Set filter UI from URL params
+    if (state.category1) {
+      filterCategory1.value = state.category1;
+      updateCategory2Options(state.category1);
+      if (state.category2) filterCategory2.value = state.category2;
+    }
+
+    buildTagChips();
+
+    // If has filters, show advanced filter
+    if (state.category1 || state.tags.length) {
+      advancedFilter.style.display = '';
+    }
+
+    const ids = getMatchingIds(state);
+    updateHeader(state, ids.size);
+    displayResults(ids, state);
+  });
+})();
+</script>
 {{ end }}
