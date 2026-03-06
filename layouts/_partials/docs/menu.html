@@ -4,9 +4,6 @@
 
 {{ partial "categories/menu" . }}
 
-{{ partial "docs/menu-hugo" (dict "Page" .Page "Menu" .Site.Menus.after) }}
-{{ partial "docs/inject/menu-after" . }}
-
 {{ partial "docs/recent-posts" . }}
 </nav>
 

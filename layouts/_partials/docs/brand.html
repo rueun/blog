@@ -10,6 +10,12 @@
       <i class="fa-brands fa-github"></i>
     </a>
     {{ end }}
+    <a href="{{ "/categories/" | relURL }}" title="Categories">
+      <i class="fa-solid fa-folder"></i>
+    </a>
+    <a href="{{ "/tags/" | relURL }}" title="Tags">
+      <i class="fa-solid fa-tags"></i>
+    </a>
     {{ with .Site.Params.BookMenu.linkedinLink }}
     <a href="{{ . }}" target="_blank" title="LinkedIn">
       <i class="fa-brands fa-linkedin"></i>

@@ -1,8 +1,8 @@
-{{ $categories := . }}
-{{ if reflect.IsSlice $categories }}
+{{- $categories := . -}}
+{{- if reflect.IsSlice $categories -}}
   {{- delimit $categories "/" -}}
-{{ else if eq (printf "%T" $categories) "string" }}
+{{- else if eq (printf "%T" $categories) "string" -}}
   {{- $categories -}}
-{{ else }}
-  ""
-{{ end }}
+{{- else -}}
+  {{- "" -}}
+{{- end -}}

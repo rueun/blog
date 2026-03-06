@@ -57,11 +57,67 @@
 </html>
 
 {{ define "menu-container" }}
-<aside class="book-menu">
+<aside class="book-menu" id="book-menu">
   <div class="book-menu-content">
+    <button class="sidebar-toggle-btn" id="sidebar-toggle" title="사이드바 접기">
+      <i class="fa-solid fa-bars"></i>
+    </button>
     {{ template "menu" . }}
   </div>
 </aside>
+<div class="sidebar-hover-zone" id="sidebar-hover-zone"></div>
+<button class="sidebar-open-btn" id="sidebar-open-btn" title="사이드바 열기">
+  <i class="fa-solid fa-chevron-right"></i>
+</button>
+<script>
+(function() {
+  var menu = document.getElementById('book-menu');
+  var toggle = document.getElementById('sidebar-toggle');
+  var hoverZone = document.getElementById('sidebar-hover-zone');
+  var openBtn = document.getElementById('sidebar-open-btn');
+  if (!menu || !toggle || !hoverZone || !openBtn) return;
+
+  var mq = window.matchMedia('(min-width: 56rem)');
+
+  function collapse() {
+    menu.classList.add('collapsed');
+    hoverZone.style.display = 'block';
+  }
+
+  function expand() {
+    menu.classList.remove('collapsed');
+    hoverZone.style.display = 'none';
+    openBtn.classList.remove('visible');
+  }
+
+  toggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!mq.matches) return;
+    collapse();
+  });
+
+  hoverZone.addEventListener('mouseenter', function() {
+    openBtn.classList.add('visible');
+  });
+
+  hoverZone.addEventListener('mouseleave', function(e) {
+    if (!openBtn.contains(e.relatedTarget)) {
+      openBtn.classList.remove('visible');
+    }
+  });
+
+  openBtn.addEventListener('mouseleave', function(e) {
+    if (!hoverZone.contains(e.relatedTarget)) {
+      openBtn.classList.remove('visible');
+    }
+  });
+
+  openBtn.addEventListener('click', function() {
+    expand();
+  });
+})();
+</script>
 {{ end }}
 
 {{ define "menu" }}
