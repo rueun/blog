@@ -243,6 +243,7 @@ a.post-nav-card,
 div.post-nav-card {
   flex: 1 1 0 !important;
   align-self: stretch;
+  margin: 0 !important;
   min-width: 0;
   overflow: hidden;
   display: flex;
@@ -283,6 +284,8 @@ div.post-nav-card {
     .empty-text {
       color: var(--gray-500);
       font-weight: 400;
+      margin: 0;
+      padding: 0;
     }
   }
 }
