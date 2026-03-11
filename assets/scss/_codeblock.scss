@@ -34,7 +34,7 @@
       padding: $padding-4 $padding-8;
       background: rgba(255, 255, 255, 0.15);
       border: none;
-      border-radius: $border-radius;
+      border-radius: 6px;
       cursor: pointer;
       font-size: $font-size-12;
       color: rgba(255, 255, 255, 0.6);
@@ -59,7 +59,7 @@
     .code-lang-label {
       padding: $padding-4 $padding-8;
       background: rgba(255, 255, 255, 0.1);
-      border-radius: $border-radius;
+      border-radius: 6px;
       font-size: $font-size-12;
       color: rgba(255, 255, 255, 0.5);
       text-transform: uppercase;
@@ -76,7 +76,7 @@
   // Outer wrapper
   > div {
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: 12px;
   }
 
   // Table layout (line numbers)
@@ -102,13 +102,15 @@
   td:first-child {
     width: 1px;
     white-space: nowrap;
+    user-select: none;
 
     pre {
       padding-right: 0 !important;
     }
 
-    code span {
+    code, code span {
       color: rgba(255, 255, 255, 0.25) !important;
+      user-select: none;
     }
   }
 

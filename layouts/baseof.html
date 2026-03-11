@@ -104,12 +104,16 @@
         block.insertBefore(toolbar, block.firstChild);
       }
 
-      // Click code to select all
-      var codeArea = block.querySelector('td:last-child code') || block.querySelector('pre code');
-      if (codeArea) {
-        codeArea.addEventListener('click', function() {
+      // Click code to select all (select the code td or pre)
+      var codeTd = block.querySelector('td:last-child');
+      var codeTarget = codeTd || block.querySelector('pre');
+      if (codeTarget) {
+        codeTarget.style.cursor = 'pointer';
+        codeTarget.addEventListener('click', function(e) {
+          // Don't select if user is dragging
+          if (window.getSelection().toString().length > 0) return;
           var range = document.createRange();
-          range.selectNodeContents(codeArea);
+          range.selectNodeContents(codeTarget);
           var sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(range);
