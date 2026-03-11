@@ -7,6 +7,8 @@
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 
   // Mac window dots
   &::before {
@@ -121,9 +123,21 @@
       }
     }
 
-    // Code column
-    td:last-child pre {
-      padding-left: $padding-4 !important;
+    // Code column - user-select: all makes click = select all
+    td:last-child {
+      -webkit-user-select: all !important;
+      user-select: all !important;
+
+      pre {
+        padding-left: $padding-4 !important;
+        -webkit-user-select: all !important;
+        user-select: all !important;
+      }
+
+      code {
+        -webkit-user-select: all !important;
+        user-select: all !important;
+      }
     }
   }
 }

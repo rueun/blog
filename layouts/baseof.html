@@ -106,26 +106,7 @@
       wrapper.appendChild(actions);
       wrapper.appendChild(highlight);
 
-      // Make line numbers unselectable
-      highlight.querySelectorAll('td:first-child, td:first-child *').forEach(function(el) {
-        el.style.userSelect = 'none';
-        el.style.webkitUserSelect = 'none';
-        el.style.pointerEvents = 'none';
-      });
-
-      // Click wrapper to select all code, prevent drag
-      var codeTarget = highlight.querySelector('td:last-child code') || highlight.querySelector('pre code');
-
-      wrapper.addEventListener('mousedown', function(e) {
-        if (e.target.closest('.code-actions')) return;
-        e.preventDefault();
-        if (!codeTarget) return;
-        var range = document.createRange();
-        range.selectNodeContents(codeTarget);
-        var sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      });
+      // CSS user-select: none on wrapper + user-select: all on code handles everything
     });
   })();
   </script>
