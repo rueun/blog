@@ -1,0 +1,13 @@
+<div class="sc-codeblock" {{ with .Type }}data-lang="{{ . }}"{{ end }}>
+  <div class="code-actions">
+    <button class="code-copy-btn code-action" onclick="copyCode(this)">
+      <i class="fa-regular fa-copy"></i> COPY
+    </button>
+    {{ if and .Type (ne .Type "fallback") (ne .Type "text") }}
+    <span class="code-lang-label code-action">{{ .Type | upper }}</span>
+    {{ end }}
+  </div>
+  <div class="code-select-area">
+    {{- (transform.HighlightCodeBlock . .Options).Wrapped | safeHTML -}}
+  </div>
+</div>

@@ -1,14 +1,12 @@
 // =====================
 // Code block - Mac style UI
 // =====================
-.codeblock-wrap {
+.sc-codeblock {
   position: relative;
   margin: $padding-16 0;
   border-radius: 12px;
   overflow: hidden;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
+  background: #282a36;
 
   // Mac window dots
   &::before {
@@ -23,6 +21,7 @@
     border-radius: 50%;
     box-shadow: 1.25rem 0 0 #ffbd2e, 2.5rem 0 0 #28ca42;
     z-index: 2;
+    pointer-events: none;
   }
 
   // Actions bar (copy + lang)
@@ -30,7 +29,7 @@
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
-    z-index: 2;
+    z-index: 3;
     display: flex;
     gap: $padding-4;
   }
@@ -56,7 +55,7 @@
     }
 
     &.copied {
-      background: #28ca42;
+      background: rgba(76, 175, 80, 0.8);
       color: white;
     }
   }
@@ -72,78 +71,52 @@
     white-space: nowrap;
   }
 
-  // Highlight inner
+  // Click to select all
+  .code-select-area {
+    -webkit-user-select: all;
+    user-select: all;
+    cursor: default;
+
+    *, *::before, *::after {
+      &::selection {
+        background: transparent;
+      }
+      &::-moz-selection {
+        background: transparent;
+      }
+    }
+
+    &::selection {
+      background: transparent;
+    }
+    &::-moz-selection {
+      background: transparent;
+    }
+  }
+
+  // Selected state outline on outer wrapper
+  &:focus-within {
+    outline: 3px solid rgba(100, 149, 237, 0.7);
+    outline-offset: -1px;
+  }
+
+  // Highlight block
   .highlight {
     margin: 0;
-
-    > div {
-      overflow-x: auto;
-    }
-
-    // Kill ALL table borders
-    table, thead, tbody, tr, td, th {
-      border: none !important;
-      border-spacing: 0 !important;
-      border-collapse: collapse !important;
-      outline: none !important;
-      box-shadow: none !important;
-      background: transparent !important;
-    }
-
-    table {
-      width: 100%;
-    }
-
-    td {
-      padding: 0 !important;
-      vertical-align: top;
-    }
 
     pre {
       padding-top: 2.5rem !important;
       margin: 0 !important;
       border: none !important;
       border-radius: 0 !important;
-    }
-
-    // Line number column
-    td:first-child {
-      width: 1px;
-      white-space: nowrap;
-      -webkit-user-select: none !important;
-      user-select: none !important;
-      pointer-events: none;
-
-      pre {
-        padding-right: 0 !important;
-      }
-
-      code, code span {
-        color: rgba(255, 255, 255, 0.25) !important;
-      }
-    }
-
-    // Code column - user-select: all makes click = select all
-    td:last-child {
-      -webkit-user-select: all !important;
-      user-select: all !important;
-
-      pre {
-        padding-left: $padding-4 !important;
-        -webkit-user-select: all !important;
-        user-select: all !important;
-      }
-
-      code {
-        -webkit-user-select: all !important;
-        user-select: all !important;
-      }
+      background: transparent !important;
+      overflow-x: auto;
     }
   }
 }
 
-// Unwrapped highlights (fallback, shouldn't normally happen)
-.markdown .highlight:not(.codeblock-wrap .highlight) {
+// Unwrapped highlights (fallback)
+.markdown .highlight:not(.sc-codeblock .highlight) {
   border-radius: 12px;
   overflow: hidden;
   margin: $padding-16 0;

@@ -52,63 +52,52 @@
     <i class="fa-solid fa-plus"></i>
   </button>
 
-  <!-- Code block: wrap in container + toolbar + click to select -->
+  <!-- Code block: copy + click to select -->
   <script>
-  (function() {
-    document.querySelectorAll('.markdown .highlight').forEach(function(highlight) {
-      // Detect language
-      var codeEl = highlight.querySelector('code[class*="language-"]');
-      var lang = '';
-      if (codeEl) {
-        var match = (codeEl.className || '').match(/language-(\w+)/);
-        if (match) lang = match[1];
+  function getCodeText(block) {
+    var lines = block.querySelectorAll('pre code > span[style*="display:flex"]');
+    return Array.from(lines).map(function(line) {
+      // Skip first span (line number), get the rest (code)
+      var spans = line.querySelectorAll(':scope > span');
+      if (spans.length > 1) {
+        return Array.from(spans).slice(1).map(function(s) { return s.textContent; }).join('');
       }
-
-      // Create wrapper: .codeblock-wrap > .code-actions + .highlight
-      var wrapper = document.createElement('div');
-      wrapper.className = 'codeblock-wrap';
-      if (lang && lang !== 'fallback') wrapper.setAttribute('data-lang', lang);
-      highlight.parentNode.insertBefore(wrapper, highlight);
-
-      // Create actions bar
-      var actions = document.createElement('div');
-      actions.className = 'code-actions';
-
-      // Copy button
-      var btn = document.createElement('button');
-      btn.className = 'code-copy-btn';
-      btn.innerHTML = '<i class="fa-regular fa-copy"></i> COPY';
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        e.preventDefault();
-        var code = highlight.querySelector('td:last-child code') || highlight.querySelector('pre code');
-        if (!code) return;
-        var text = code.innerText || code.textContent;
-        navigator.clipboard.writeText(text).then(function() {
-          btn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED';
-          btn.classList.add('copied');
-          setTimeout(function() {
-            btn.innerHTML = '<i class="fa-regular fa-copy"></i> COPY';
-            btn.classList.remove('copied');
-          }, 2000);
-        });
+      return line.textContent;
+    }).join('');
+  }
+  function copyCode(button) {
+    var block = button.closest('.sc-codeblock');
+    if (!block) return;
+    var text = getCodeText(block);
+    navigator.clipboard.writeText(text).then(function() {
+      var icon = button.querySelector('i');
+      var origClass = icon.className;
+      icon.className = 'fa-solid fa-check';
+      button.childNodes.forEach(function(n) {
+        if (n.nodeType === 3 && n.textContent.trim()) n.textContent = ' COPIED';
       });
-      actions.appendChild(btn);
-
-      // Language label
-      if (lang && lang !== 'fallback') {
-        var langLabel = document.createElement('span');
-        langLabel.className = 'code-lang-label';
-        langLabel.textContent = lang.toUpperCase();
-        actions.appendChild(langLabel);
-      }
-
-      wrapper.appendChild(actions);
-      wrapper.appendChild(highlight);
-
-      // CSS user-select: none on wrapper + user-select: all on code handles everything
+      button.classList.add('copied');
+      setTimeout(function() {
+        icon.className = origClass;
+        button.childNodes.forEach(function(n) {
+          if (n.nodeType === 3 && n.textContent.trim()) n.textContent = ' COPY';
+        });
+        button.classList.remove('copied');
+      }, 2000);
     });
-  })();
+  }
+  // Intercept Ctrl+C / Cmd+C to strip line numbers
+  document.addEventListener('copy', function(e) {
+    var sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    var block = sel.anchorNode;
+    while (block && !block.classList) block = block.parentNode;
+    if (!block) return;
+    block = block.closest ? block.closest('.sc-codeblock') : null;
+    if (!block) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', getCodeText(block));
+  });
   </script>
 
   <script src="/fuse.min.js"></script>
