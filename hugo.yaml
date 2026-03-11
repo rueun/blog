@@ -3,7 +3,10 @@ title: Rueun's Blog
 theme: hugo-book
 
 disablePathToLower: true
+disableKinds:
+  - term
 paginate: 10
+enableRobotsTXT: true
 
 taxonomies:
   category: categories
@@ -33,6 +36,10 @@ menu:
       url: "/categories/"
       weight: 30
 
+services:
+  googleAnalytics:
+    ID: "G-CFWB44KHRY"
+
 params:
   BookTheme: "light"
   BookToC: true
@@ -45,3 +52,20 @@ params:
     profileImage: "https://avatars.githubusercontent.com/u/64256409"
     githubLink: "https://github.com/rueun"
     recentPosts: true
+
+  # SEO
+  description: "Rueun's 개발 블로그"
+  author: "Rueun"
+  images:
+    - "https://avatars.githubusercontent.com/u/64256409"
+
+  # 검색엔진 인증
+  googleSiteVerification: "" # Google Search Console 인증 코드
+  naverSiteVerification: ""  # Naver Search Advisor 인증 코드
+
+  # Schema.org
+  schema:
+    publisherType: "Person"
+    publisherName: "Rueun"
+    sameAs:
+      - "https://github.com/rueun"
