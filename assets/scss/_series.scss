@@ -16,10 +16,6 @@
   margin: $padding-24 0;
 }
 
-.series-toggle-input {
-  display: none;
-}
-
 .series-header {
   display: flex;
   align-items: center;
@@ -35,46 +31,6 @@
   i {
     margin-right: $padding-4;
   }
-}
-
-.series-toggle-label {
-  cursor: pointer;
-  font-size: $font-size-14;
-  color: var(--color-link);
-  user-select: none;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-// Toggle visibility
-.series-toggle-input:checked ~ .series-header .series-toggle-hide {
-  display: inline;
-}
-.series-toggle-input:checked ~ .series-header .series-toggle-show {
-  display: none;
-}
-.series-toggle-input:not(:checked) ~ .series-header .series-toggle-hide {
-  display: none;
-}
-.series-toggle-input:not(:checked) ~ .series-header .series-toggle-show {
-  display: inline;
-}
-
-// List toggle
-.series-toggle-input:checked ~ .series-list-wrap {
-  max-height: 1000px;
-  opacity: 1;
-}
-.series-toggle-input:not(:checked) ~ .series-list-wrap {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-}
-
-.series-list-wrap {
-  transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
 .series-list {

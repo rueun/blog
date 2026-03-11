@@ -35,8 +35,8 @@
   // Floating nav: hidden by default, toggle with + button
   .floating-nav {
     display: none;
-    bottom: 5rem;
-    right: 1.3rem;
+    bottom: 8rem;
+    right: 1.2rem;
 
     &.open {
       display: flex;
@@ -46,7 +46,7 @@
   .floating-toggle {
     display: flex;
     position: fixed;
-    bottom: 1.5rem;
+    bottom: 4.5rem;
     right: 1.0rem;
     width: 3rem;
     height: 3rem;
@@ -64,6 +64,107 @@
 
     &.open {
       transform: rotate(45deg);
+    }
+  }
+
+  // Mobile TOC button (below floating toggle)
+  .mobile-toc-btn {
+    display: flex;
+    position: fixed;
+    bottom: 1.0rem;
+    right: 1.0rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: var(--gray-200);
+    border: none;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    color: var(--body-font-color);
+    font-size: 1.1rem;
+    z-index: 51;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  // Mobile TOC overlay
+  .mobile-toc-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    justify-content: center;
+    align-items: flex-end;
+    padding: 1.5rem;
+
+    &.open {
+      display: flex;
+    }
+
+    .mobile-toc-box {
+      width: 100%;
+      max-height: 70vh;
+      overflow-y: auto;
+      background: var(--gray-100);
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      padding: $padding-16;
+      position: relative;
+
+      .mobile-toc-title {
+        font-size: $font-size-14;
+        color: var(--gray-500);
+        margin-bottom: $padding-8;
+        padding-left: $padding-4;
+      }
+
+      .mobile-toc-close {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        background: var(--gray-200);
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--body-font-color);
+        font-size: 0.875rem;
+      }
+
+      ul {
+        padding: 0;
+        margin: 0;
+        list-style: none;
+
+        ul {
+          padding-left: $padding-8;
+        }
+      }
+
+      a {
+        display: block;
+        padding: $padding-8 $padding-8 $padding-8 $padding-8;
+        color: var(--gray-500);
+        font-size: $font-size-14;
+        text-decoration: none;
+        border-left: 3px solid transparent;
+        border-radius: 0 6px 6px 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        &.active {
+          color: var(--color-link);
+          font-weight: bold;
+          border-left-color: var(--color-link);
+          background: rgba(155, 89, 182, 0.1);
+        }
+      }
     }
   }
 }

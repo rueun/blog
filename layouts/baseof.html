@@ -52,6 +52,40 @@
     <i class="fa-solid fa-plus"></i>
   </button>
 
+  <!-- Mobile TOC button (below toggle) -->
+  {{ if partial "docs/toc-show" . }}
+  <button class="mobile-toc-btn" id="mobile-toc-btn" onclick="document.getElementById('mobile-toc-overlay').classList.add('open')" title="목차">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+
+  <!-- Mobile TOC overlay -->
+  <div class="mobile-toc-overlay" id="mobile-toc-overlay">
+    <div class="mobile-toc-box">
+      <span class="mobile-toc-title">목차</span>
+      <button class="mobile-toc-close" onclick="document.getElementById('mobile-toc-overlay').classList.remove('open')">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      {{ .TableOfContents }}
+    </div>
+  </div>
+  <script>
+  (function() {
+    var overlay = document.getElementById('mobile-toc-overlay');
+    if (!overlay) return;
+    // Click overlay background to close
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.classList.remove('open');
+    });
+    // Click TOC link to close and scroll
+    overlay.querySelectorAll('a').forEach(function(a) {
+      a.addEventListener('click', function() {
+        overlay.classList.remove('open');
+      });
+    });
+  })();
+  </script>
+  {{ end }}
+
   <!-- Code block: copy + click to select -->
   <script>
   function getCodeText(block) {

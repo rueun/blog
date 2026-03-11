@@ -20,15 +20,10 @@
 
 {{- if gt $total 0 -}}
 <div class="series-wrap">
-  <input type="checkbox" id="series-toggle" class="series-toggle-input" checked />
   <div class="series-header">
     <div class="series-title">
       <i class="fa-solid fa-book"></i> {{ $seriesName }}
     </div>
-    <label for="series-toggle" class="series-toggle-label">
-      <span class="series-toggle-hide">숨기기</span>
-      <span class="series-toggle-show">목록 보기</span>
-    </label>
   </div>
   <div class="series-list-wrap">
     <ol class="series-list">
@@ -67,17 +62,4 @@
     </div>
   </div>
 </div>
-<script>
-(function() {
-  const toggle = document.getElementById("series-toggle");
-  const storageKey = "series-expanded";
-  const saved = localStorage.getItem(storageKey);
-  if (saved !== null) {
-    toggle.checked = (saved === "true");
-  }
-  toggle.addEventListener("change", function() {
-    localStorage.setItem(storageKey, this.checked);
-  });
-})();
-</script>
 {{- end -}}
