@@ -101,6 +101,11 @@
   color: white;
 }
 
+/* TOC 클릭 시 헤딩이 화면 상단에서 살짝 여백 갖도록 */
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  scroll-margin-top: 1.5rem;
+}
+
 /* Inline code */
 .prose :not(pre) > code {
   background: #f1f5f9;

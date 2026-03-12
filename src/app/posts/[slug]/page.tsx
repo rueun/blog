@@ -28,33 +28,33 @@ export default async function PostPage({ params }: Props) {
 
   const formattedDate = new Date(post.date).toLocaleDateString('ko-KR', {
     year: 'numeric',
-    month: 'long',
+    month: 'numeric',
     day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 
+  const categories = Array.isArray(post.categories) ? post.categories : []
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
+    <div className="max-w-3xl mx-auto px-4 py-16">
       <article>
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-3 leading-tight">{post.title}</h1>
-          <div className="flex items-center gap-3 text-sm text-gray-400 mb-4">
-            <span>{formattedDate}</span>
-            <span>·</span>
-            <span>{post.readingTime}</span>
-          </div>
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {post.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="bg-[#f3f0ff] text-[#7c3aed] px-2.5 py-0.5 rounded-full text-xs font-medium"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
+        {/* 포스트 헤더 */}
+        <header className="text-center mb-10">
+          {categories.length > 0 && (
+            <p className="text-sm text-gray-400 mb-6">
+              {categories.join(' / ')}
+            </p>
           )}
+          <h1 className="text-4xl font-bold text-gray-900 leading-tight mb-6">
+            {post.title}
+          </h1>
+          <p className="text-sm text-gray-400">
+            {formattedDate}&nbsp;·&nbsp;{post.readingTime}
+          </p>
         </header>
+
+        <hr className="border-gray-200 mb-10" />
 
         {seriesPosts.length > 1 && (
           <SeriesToc seriesName={post.series!} posts={seriesPosts} currentSlug={slug} />
@@ -65,7 +65,6 @@ export default async function PostPage({ params }: Props) {
         <PostNav prev={prev} next={next} />
       </article>
 
-      {/* TOC: 데스크탑 fixed 사이드바 + 모바일 플로팅 버튼 */}
       <TableOfContents headings={post.headings} />
     </div>
   )
