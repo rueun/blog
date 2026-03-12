@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export default function ReadingProgress() {
   const [progress, setProgress] = useState(0)
-  const [transition, setTransition] = useState('width 80ms linear')
+  const [transition, setTransition] = useState('width 200ms ease-out')
   const locked = useRef(false)
   const unlockTimer = useRef<ReturnType<typeof setTimeout>>()
 
@@ -26,7 +26,7 @@ export default function ReadingProgress() {
       clearTimeout(unlockTimer.current)
       unlockTimer.current = setTimeout(() => {
         locked.current = false
-        setTransition('width 80ms linear')
+        setTransition('width 200ms ease-out')
       }, 800)
     }
 
