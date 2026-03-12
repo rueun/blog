@@ -65,7 +65,7 @@ export default function TableOfContents({ headings }: Props) {
     const el = document.getElementById(id)
     if (el) {
       const top = el.getBoundingClientRect().top + window.scrollY - 24
-      window.scrollTo({ top, behavior: 'smooth' })
+      window.scrollTo({ top, behavior: 'instant' })
       setActiveId(id)
     }
     setMobileOpen(false)
