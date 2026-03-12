@@ -6,7 +6,7 @@ export default function ReadingProgress() {
   const [progress, setProgress] = useState(0)
   const target = useRef(0)
   const current = useRef(0)
-  const rafId = useRef<number>()
+  const rafId = useRef<number>(undefined)
 
   useEffect(() => {
     const animate = () => {

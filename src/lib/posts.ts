@@ -103,3 +103,16 @@ export function getAdjacentPosts(slug: string): { prev: PostMeta | null; next: P
     next: idx > 0 ? posts[idx - 1] : null,
   }
 }
+
+export function getCategoryGroups(): { name: string; count: number }[] {
+  const posts = getAllPostMetas()
+  const counts: Record<string, number> = {}
+  posts.forEach((post) => {
+    ;(post.categories ?? []).forEach((cat) => {
+      counts[cat] = (counts[cat] ?? 0) + 1
+    })
+  })
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
