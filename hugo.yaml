@@ -1,4 +1,4 @@
-baseURL: https://blog-tawny-three-20.vercel.app/
+baseURL: /
 title: Rueun's Blog
 theme: hugo-book
 
