@@ -25,7 +25,8 @@ function rehypeMacCodeBlock() {
     visit(tree, 'element', (node: Element, index: number | undefined, parent: Parent | undefined) => {
       if (node.tagName !== 'figure') return
       const props = node.properties as Record<string, unknown>
-      if (!props['dataRehypePrettyCodeFigure']) return
+      // 값이 "" (빈 문자열)일 수 있으므로 key 존재 여부로 체크
+      if (!('dataRehypePrettyCodeFigure' in props)) return
 
       const pre = node.children.find(
         (c): c is Element => c.type === 'element' && (c as Element).tagName === 'pre'

@@ -31,12 +31,13 @@
 }
 
 .code-block figure[data-rehype-pretty-code-figure] {
-  margin: 0;
-  background: transparent;
+  margin: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
 }
 
 .code-block figure[data-rehype-pretty-code-figure]::before {
-  display: none;
+  display: none !important;
 }
 
 .code-block pre {
@@ -48,7 +49,7 @@
 }
 
 .code-block figcaption {
-  display: none;
+  display: none !important;
 }
 
 /* Actions bar (lang label + copy button) */
