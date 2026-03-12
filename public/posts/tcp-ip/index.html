@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="TCP/IP 프로토콜 스택의 구조와 TCP 연결 수립 과정인 3-Way Handshake를 정리합니다.">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="TCP/IP 프로토콜과 3-Way Handshake" />
+<meta property="og:description" content="TCP/IP 프로토콜 스택의 구조와 TCP 연결 수립 과정인 3-Way Handshake를 정리합니다." />
+<meta property="og:url" content="http://localhost:1313/posts/tcp-ip/" />
+<meta property="og:site_name" content="Rueun&#39;s Blog" />
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-02-08T00:00:00Z" />
+<meta property="article:modified_time" content="2026-02-08T00:00:00Z" />
+<meta property="article:section" content="CS" />
+<meta property="article:section" content="Network" />
+<meta property="article:tag" content="TCP" />
+<meta property="article:tag" content="Network" />
+<meta property="article:tag" content="Protocol" />
+<meta property="article:tag" content="CS" />
+<meta property="og:image" content="https://avatars.githubusercontent.com/u/64256409" />
+
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="TCP/IP 프로토콜과 3-Way Handshake" />
+<meta name="twitter:description" content="TCP/IP 프로토콜 스택의 구조와 TCP 연결 수립 과정인 3-Way Handshake를 정리합니다." />
+<meta name="twitter:image" content="https://avatars.githubusercontent.com/u/64256409" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "\"TCP/IP 프로토콜과 3-Way Handshake\"",
+  "description": "\"TCP/IP 프로토콜 스택의 구조와 TCP 연결 수립 과정인 3-Way Handshake를 정리합니다.\"",
+  "url": "\"http://localhost:1313/posts/tcp-ip/\"",
+  "datePublished": "2026-02-08T00:00:00Z",
+  "dateModified": "2026-02-08T00:00:00Z",
+  "image": "\"https://avatars.githubusercontent.com/u/64256409\"",
+  "author": {
+    "@type": "Person",
+    "name": "\"Rueun\"",
+    "sameAs": "[\"https://github.com/rueun\"]"
+  },
+  "publisher": {
+    "@type": "Person",
+    "name": "\"Rueun's Blog\""
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "\"http://localhost:1313/posts/tcp-ip/\""
+  },
+  "keywords": "[\"TCP\",\"Network\",\"Protocol\",\"CS\"]"
+}
+</script>
+
+<title>TCP/IP 프로토콜과 3-Way Handshake | Rueun&#39;s Blog</title>
+<link rel="icon" href="/favicon.png" >
+<link rel="manifest" href="/manifest.json">
+<link rel="canonical" href="http://localhost:1313/posts/tcp-ip/">
+<link rel="stylesheet" href="/book.min.290b3c736c553a42c5c8bd9500a51fa139cf9e43fe6369ffc7045bfe1e7b6912.css" integrity="sha256-KQs8c2xVOkLFyL2VAKUfoTnPnkP&#43;Y2n/xwRb/h57aRI=" crossorigin="anonymous">
+
+
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/en.search.min.291b5ebdc6851a449675d08aa5a6ee93197089dbe320b2206f6557a82cc7205f.js" integrity="sha256-KRtevcaFGkSWddCKpabukxlwidvjILIgb2VXqCzHIF8=" crossorigin="anonymous"></script>
+
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-CFWB44KHRY"></script>
+      <script>
+        var doNotTrack = false;
+        if ( true ) {
+          var dnt = (navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack);
+          var doNotTrack = (dnt == "1" || dnt == "yes");
+        }
+        if (!doNotTrack) {
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-CFWB44KHRY');
+        }
+      </script>
+
+
+  
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-CFWB44KHRY"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-CFWB44KHRY');
+</script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+<script defer src="/toc-highlight.min.345571564d0e814efc8b24d9118615eb238c1b178ead5f3b9443b308382e9788.js"></script>
+
+<script defer src="/scroll-progress.min.70ea3d37ce9c301a1b1fca53972d94f2f39da67725f7bbfcdd9242c7c26955c7.js"></script>
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/search/fuse.min.a1c47db207494ad9dfc4394ebc6b4ca5f4e1809fa3eaeb994553f99e2e37b27f.js"></script>
+  
+  <script defer src="/search/input.min.eed8c2f0b355986191da634451983f5f8cb56014f0948e1a8b88ee9a9e8bd2e1.js"></script>
+
+  
+
+
+</head>
+<body dir="ltr" class="book-kind-page book-type-posts">
+  <div id="scroll-progress" class="scroll-progress"></div>
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    
+<aside class="book-menu" id="book-menu">
+  <div class="book-menu-content">
+    <button class="sidebar-toggle-btn" id="sidebar-toggle" title="사이드바 접기">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    
+  <nav>
+<div class="sidebar-profile">
+  <div class="profile-img-wrap">
+    <a href="/">
+      <img src="https://avatars.githubusercontent.com/u/64256409" alt="Profile" class="profile-img" />
+    </a>
+  </div>
+  <div class="sidebar-social">
+    
+    <a href="https://github.com/rueun" target="_blank" title="GitHub">
+      <i class="fa-brands fa-github"></i>
+    </a>
+    
+    <a href="/categories/" title="Categories">
+      <i class="fa-solid fa-folder"></i>
+    </a>
+    <a href="/tags/" title="Tags">
+      <i class="fa-solid fa-tags"></i>
+    </a>
+    
+    
+    
+  </div>
+</div>
+
+<h2 class="book-brand">
+  <a class="flex align-center" href="/"><span>Rueun&#39;s Blog</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <div class="search-input-container">
+    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+    <kbd class="search-kbd">/</kbd>
+    <input type="text" id="book-search-input"
+      placeholder="를 눌러 검색하세요" aria-label="Search"
+      maxlength="64" data-hotkeys="s/" onkeydown="if(event.key==='Enter') goToSearchPage()" />
+  </div>
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>
+document.querySelector(".book-search").classList.remove("hidden");
+function goToSearchPage() {
+  const searchInput = document.getElementById('book-search-input');
+  const query = searchInput.value.trim();
+  if (query) {
+    window.location.href = '/search/?q=' + encodeURIComponent(query);
+  }
+}
+</script>
+
+
+
+
+
+
+
+<div class="recent-posts">
+  <h3>최신 글</h3>
+  <ul>
+    
+    
+    <li>
+      <a href="/posts/spring-boot-intro/">Spring Boot 시작하기</a>
+    </li>
+    
+    <li>
+      <a href="/posts/spring-exception-handling/">Spring Boot 예외 처리 전략 - @ExceptionHandler와 @ControllerAdvice</a>
+    </li>
+    
+    <li>
+      <a href="/posts/java-basics/">Java 기초 정리</a>
+    </li>
+    
+    <li>
+      <a href="/posts/spring-security-jwt/">Spring Security &#43; JWT 인증 구현하기</a>
+    </li>
+    
+    <li>
+      <a href="/posts/hello-world/">Hello World - 첫 번째 포스트</a>
+    </li>
+    
+  </ul>
+</div>
+
+
+</nav>
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+
+  </div>
+</aside>
+<div class="sidebar-hover-zone" id="sidebar-hover-zone"></div>
+<button class="sidebar-open-btn" id="sidebar-open-btn" title="사이드바 열기">
+  <i class="fa-solid fa-chevron-right"></i>
+</button>
+<script>
+(function() {
+  var menu = document.getElementById('book-menu');
+  var toggle = document.getElementById('sidebar-toggle');
+  var hoverZone = document.getElementById('sidebar-hover-zone');
+  var openBtn = document.getElementById('sidebar-open-btn');
+  if (!menu || !toggle || !hoverZone || !openBtn) return;
+
+  var mq = window.matchMedia('(min-width: 56rem)');
+
+  function collapse() {
+    menu.classList.add('collapsed');
+    hoverZone.style.display = 'block';
+  }
+
+  function expand() {
+    menu.classList.remove('collapsed');
+    hoverZone.style.display = 'none';
+    openBtn.classList.remove('visible');
+  }
+
+  toggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!mq.matches) return;
+    collapse();
+  });
+
+  hoverZone.addEventListener('mouseenter', function() {
+    openBtn.classList.add('visible');
+  });
+
+  hoverZone.addEventListener('mouseleave', function(e) {
+    if (!openBtn.contains(e.relatedTarget)) {
+      openBtn.classList.remove('visible');
+    }
+  });
+
+  openBtn.addEventListener('mouseleave', function(e) {
+    if (!hoverZone.contains(e.relatedTarget)) {
+      openBtn.classList.remove('visible');
+    }
+  });
+
+  openBtn.addEventListener('click', function() {
+    expand();
+  });
+})();
+</script>
+
+
+    <div class="book-page">
+      <header class="book-header hidden">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/icons/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>TCP/IP 프로토콜과 3-Way Handshake</h3>
+
+  <div></div>
+</div>
+
+
+  
+  <aside class="hidden">
+    
+  
+<nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#tcpip-프로토콜-스택">TCP/IP 프로토콜 스택</a></li>
+        <li><a href="#tcp-vs-udp">TCP vs UDP</a></li>
+        <li><a href="#3-way-handshake">3-Way Handshake</a></li>
+        <li><a href="#4-way-handshake-연결-종료">4-Way Handshake (연결 종료)</a></li>
+        <li><a href="#정리">정리</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+
+
+
+  </aside>
+  
+
+      </header>
+
+      
+      
+<article class="markdown book-article">
+  
+
+<div class="post-header">
+  
+  <div class="post-header-categories">
+    <a href="/categories/CS/" class="category">
+        CS
+      </a>
+      <span class="category-separator">/</span>
+        <a href="/categories/CS/Network/" class="category">
+          Network
+        </a></div>
+  
+
+  <h1 class="post-header-title">TCP/IP 프로토콜과 3-Way Handshake</h1>
+
+  <div class="post-header-meta">
+    <time datetime="2026-02-08">
+      2026. 02. 08. 00:00
+    </time>
+    
+    <span class="post-reading-time">· 읽는데 1분</span>
+    
+  </div>
+
+  
+
+  
+</div>
+<hr />
+
+<h2 id="tcpip-프로토콜-스택">TCP/IP 프로토콜 스택<a class="anchor" href="#tcpip-%ed%94%84%eb%a1%9c%ed%86%a0%ec%bd%9c-%ec%8a%a4%ed%83%9d">#</a></h2>
+<table>
+  <thead>
+      <tr>
+          <th>계층</th>
+          <th>프로토콜</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>애플리케이션</td>
+          <td>HTTP, FTP, DNS</td>
+      </tr>
+      <tr>
+          <td>전송</td>
+          <td>TCP, UDP</td>
+      </tr>
+      <tr>
+          <td>네트워크</td>
+          <td>IP, ICMP</td>
+      </tr>
+      <tr>
+          <td>데이터 링크</td>
+          <td>Ethernet, Wi-Fi</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="tcp-vs-udp">TCP vs UDP<a class="anchor" href="#tcp-vs-udp">#</a></h2>
+<table>
+  <thead>
+      <tr>
+          <th>구분</th>
+          <th>TCP</th>
+          <th>UDP</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>연결</td>
+          <td>연결 지향</td>
+          <td>비연결</td>
+      </tr>
+      <tr>
+          <td>신뢰성</td>
+          <td>보장</td>
+          <td>미보장</td>
+      </tr>
+      <tr>
+          <td>순서</td>
+          <td>보장</td>
+          <td>미보장</td>
+      </tr>
+      <tr>
+          <td>속도</td>
+          <td>상대적 느림</td>
+          <td>빠름</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="3-way-handshake">3-Way Handshake<a class="anchor" href="#3-way-handshake">#</a></h2>
+<p>TCP 연결 수립 과정:</p>
+<ol>
+<li><strong>SYN</strong>: 클라이언트 → 서버 (연결 요청)</li>
+<li><strong>SYN+ACK</strong>: 서버 → 클라이언트 (요청 수락)</li>
+<li><strong>ACK</strong>: 클라이언트 → 서버 (확인)</li>
+</ol>
+<h2 id="4-way-handshake-연결-종료">4-Way Handshake (연결 종료)<a class="anchor" href="#4-way-handshake-%ec%97%b0%ea%b2%b0-%ec%a2%85%eb%a3%8c">#</a></h2>
+<ol>
+<li><strong>FIN</strong>: 클라이언트 → 서버</li>
+<li><strong>ACK</strong>: 서버 → 클라이언트</li>
+<li><strong>FIN</strong>: 서버 → 클라이언트</li>
+<li><strong>ACK</strong>: 클라이언트 → 서버</li>
+</ol>
+<h2 id="정리">정리<a class="anchor" href="#%ec%a0%95%eb%a6%ac">#</a></h2>
+<p>TCP의 연결 수립과 종료 과정을 이해하면 네트워크 문제를 진단하는 데 큰 도움이 됩니다.</p>
+</article>
+
+      
+
+      <footer class="book-footer">
+        
+  
+<div class="post-footer-tags">
+  <div class="tag-pills">
+    
+    <a href="/tags/TCP/" class="tag-pill">
+      <i class="fa-solid fa-tag"></i> TCP
+    </a>
+    
+    <a href="/tags/Network/" class="tag-pill">
+      <i class="fa-solid fa-tag"></i> Network
+    </a>
+    
+    <a href="/tags/Protocol/" class="tag-pill">
+      <i class="fa-solid fa-tag"></i> Protocol
+    </a>
+    
+    <a href="/tags/CS/" class="tag-pill">
+      <i class="fa-solid fa-tag"></i> CS
+    </a>
+    
+  </div>
+</div>
+
+
+  
+
+
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+    
+  
+
+  
+  
+
+  
+  
+    
+  
+
+  
+  
+    
+  
+
+
+
+
+
+  
+
+  
+    
+  
+
+  
+
+
+
+<div class="post-prev-next">
+  
+  
+  <a href="/posts/http-basics/" class="post-nav-card post-prev">
+    <span class="post-nav-label"><i class="fa-solid fa-backward"></i> 이전</span>
+    <span class="post-nav-title">HTTP 프로토콜 기초 - 메서드, 상태코드, 헤더 정리</span>
+  </a>
+  
+
+  
+  
+  <a href="/posts/os-process-thread/" class="post-nav-card post-next">
+    <span class="post-nav-label">다음 <i class="fa-solid fa-forward"></i></span>
+    <span class="post-nav-title">프로세스와 스레드의 차이점 정리</span>
+  </a>
+  
+</div>
+
+
+
+
+        
+  
+
+        
+        
+  
+
+        
+  
+    <script>(function(){document.querySelectorAll("pre:has(code)").forEach(e=>{e.addEventListener("click",e.focus),e.addEventListener("copy",function(t){if(t.preventDefault(),navigator.clipboard){const t=window.getSelection().toString()||e.textContent;navigator.clipboard.writeText(t)}})})})()</script>
+  
+
+      </footer>
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+  
+  <aside class="book-toc">
+    <div class="book-toc-content">
+      
+  
+<nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#tcpip-프로토콜-스택">TCP/IP 프로토콜 스택</a></li>
+        <li><a href="#tcp-vs-udp">TCP vs UDP</a></li>
+        <li><a href="#3-way-handshake">3-Way Handshake</a></li>
+        <li><a href="#4-way-handshake-연결-종료">4-Way Handshake (연결 종료)</a></li>
+        <li><a href="#정리">정리</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+
+
+
+    </div>
+  </aside>
+  
+
+  </main>
+
+  
+  <div class="floating-nav">
+    <button class="floating-nav-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Go to top">
+      <i class="fa fa-chevron-up"></i>
+    </button>
+    <button class="floating-nav-btn" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})" title="Go to bottom">
+      <i class="fa fa-chevron-down"></i>
+    </button>
+    <button class="floating-nav-btn" onclick="history.back()" title="Go back">
+      <i class="fa-solid fa-arrow-left"></i>
+    </button>
+  </div>
+
+  
+  <button class="floating-toggle" id="floating-toggle" onclick="document.querySelector('.floating-nav').classList.toggle('open'); this.classList.toggle('open')">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+
+  
+  
+  <button class="mobile-toc-btn" id="mobile-toc-btn" onclick="document.getElementById('mobile-toc-overlay').classList.add('open')" title="목차">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+
+  
+  <div class="mobile-toc-overlay" id="mobile-toc-overlay">
+    <div class="mobile-toc-box">
+      <span class="mobile-toc-title">목차</span>
+      <button class="mobile-toc-close" onclick="document.getElementById('mobile-toc-overlay').classList.remove('open')">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#tcpip-프로토콜-스택">TCP/IP 프로토콜 스택</a></li>
+        <li><a href="#tcp-vs-udp">TCP vs UDP</a></li>
+        <li><a href="#3-way-handshake">3-Way Handshake</a></li>
+        <li><a href="#4-way-handshake-연결-종료">4-Way Handshake (연결 종료)</a></li>
+        <li><a href="#정리">정리</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  </div>
+  <script>
+  (function() {
+    var overlay = document.getElementById('mobile-toc-overlay');
+    if (!overlay) return;
+    
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.classList.remove('open');
+    });
+    
+    overlay.querySelectorAll('a').forEach(function(a) {
+      a.addEventListener('click', function() {
+        overlay.classList.remove('open');
+      });
+    });
+  })();
+  </script>
+  
+
+  
+  <script>
+  function getCodeText(block) {
+    var lines = block.querySelectorAll('pre code > span[style*="display:flex"]');
+    return Array.from(lines).map(function(line) {
+      
+      var spans = line.querySelectorAll(':scope > span');
+      if (spans.length > 1) {
+        return Array.from(spans).slice(1).map(function(s) { return s.textContent; }).join('');
+      }
+      return line.textContent;
+    }).join('');
+  }
+  function copyCode(button) {
+    var block = button.closest('.sc-codeblock');
+    if (!block) return;
+    var text = getCodeText(block);
+    navigator.clipboard.writeText(text).then(function() {
+      var icon = button.querySelector('i');
+      var origClass = icon.className;
+      icon.className = 'fa-solid fa-check';
+      button.childNodes.forEach(function(n) {
+        if (n.nodeType === 3 && n.textContent.trim()) n.textContent = ' COPIED';
+      });
+      button.classList.add('copied');
+      setTimeout(function() {
+        icon.className = origClass;
+        button.childNodes.forEach(function(n) {
+          if (n.nodeType === 3 && n.textContent.trim()) n.textContent = ' COPY';
+        });
+        button.classList.remove('copied');
+      }, 2000);
+    });
+  }
+  
+  document.addEventListener('copy', function(e) {
+    var sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    var block = sel.anchorNode;
+    while (block && !block.classList) block = block.parentNode;
+    if (!block) return;
+    block = block.closest ? block.closest('.sc-codeblock') : null;
+    if (!block) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', getCodeText(block));
+  });
+  </script>
+
+  <script src="/fuse.min.js"></script>
+  
+  <div class="search-modal-overlay" id="search-modal-overlay">
+    <div class="search-modal">
+      <div class="search-modal-input-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="search-modal-input" placeholder="검색어를 입력하세요" autocomplete="off" />
+        <kbd>ESC</kbd>
+      </div>
+      <div class="search-modal-results" id="search-modal-results"></div>
+      <div class="search-modal-footer">
+        <span><kbd>/</kbd> 로 검색</span>
+        <span><kbd>Enter</kbd> 검색 페이지로 이동</span>
+      </div>
+    </div>
+  </div>
+  
+  
+  <script>
+  (function() {
+    var overlay = document.getElementById('search-modal-overlay');
+    var input = document.getElementById('search-modal-input');
+    var results = document.getElementById('search-modal-results');
+    var fuseIndex = null;
+    var selectedIndex = -1;
+
+    function openModal() {
+      overlay.classList.add('open');
+      input.value = '';
+      results.innerHTML = '';
+      selectedIndex = -1;
+      setTimeout(function() { input.focus(); }, 50);
+    }
+
+    function closeModal() {
+      overlay.classList.remove('open');
+    }
+
+    function initFuse() {
+      if (fuseIndex) return Promise.resolve();
+      return fetch('\/en.search-data.min.27e170fa5e30bb19ca6f027f29e259e0801147851308493c1de5811687d2c993.json')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          fuseIndex = new Fuse(data, {
+            includeScore: true,
+            threshold: 0.3,
+            ignoreLocation: true,
+            keys: [
+              { name: 'title', weight: 0.7 },
+              { name: 'content', weight: 0.2 },
+              { name: 'description', weight: 0.1 }
+            ]
+          });
+        });
+    }
+
+    function search() {
+      results.innerHTML = '';
+      selectedIndex = -1;
+      if (!input.value.trim()) return;
+      initFuse().then(function() {
+        var hits = fuseIndex.search(input.value.trim()).slice(0, 8);
+        hits.forEach(function(hit, i) {
+          var a = document.createElement('a');
+          a.className = 'search-modal-item';
+          a.href = hit.item.href;
+          var cats = (hit.item.categories || []).join(' / ');
+          a.innerHTML = '<div class="search-modal-item-title">' + hit.item.title + '</div>' +
+            '<div class="search-modal-item-meta">' + hit.item.date + (cats ? ' · ' + cats : '') + '</div>';
+          results.appendChild(a);
+        });
+        if (hits.length === 0) {
+          results.innerHTML = '<div style="padding:1rem 1.5rem;color:var(--gray-500);font-size:0.875rem;">검색 결과가 없습니다.</div>';
+        }
+      });
+    }
+
+    function updateSelection() {
+      var items = results.querySelectorAll('.search-modal-item');
+      items.forEach(function(item, i) {
+        item.classList.toggle('active', i === selectedIndex);
+      });
+    }
+
+    
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        openModal();
+      }
+    });
+
+    
+    document.addEventListener('keydown', function(e) {
+      if (!overlay.classList.contains('open')) return;
+      if (e.key === 'Escape') closeModal();
+    });
+
+    
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeModal();
+    });
+
+    
+    var debounceTimer;
+    input.addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(search, 200);
+    });
+
+    
+    input.addEventListener('keydown', function(e) {
+      var items = results.querySelectorAll('.search-modal-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+        updateSelection();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        updateSelection();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+          window.location.href = items[selectedIndex].href;
+        } else if (input.value.trim()) {
+          window.location.href = '/search/?query=' + encodeURIComponent(input.value.trim());
+        }
+      }
+    });
+  })();
+  </script>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

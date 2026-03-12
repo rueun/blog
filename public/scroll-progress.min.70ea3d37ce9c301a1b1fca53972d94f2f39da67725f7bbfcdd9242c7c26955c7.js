@@ -1,0 +1,1 @@
+document.addEventListener("DOMContentLoaded",function(){const e=document.getElementById("scroll-progress");if(!e)return;window.addEventListener("scroll",function(){const n=window.scrollY||document.documentElement.scrollTop,t=document.documentElement.scrollHeight-document.documentElement.clientHeight,s=t>0?n/t*100:0;e.style.width=s+"%"})})

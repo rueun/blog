@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================
+   Mac-style code block
+   ========================================== */
+
+.code-block {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 1.5rem 0;
+  background: #282a36;
+}
+
+/* Mac window dots */
+.code-block::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0.75rem;
+  left: 1rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  background: #ff5f57;
+  border-radius: 50%;
+  box-shadow: 1.25rem 0 0 #ffbd2e, 2.5rem 0 0 #28ca42;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.code-block figure[data-rehype-pretty-code-figure] {
+  margin: 0;
+  background: transparent;
+}
+
+.code-block figure[data-rehype-pretty-code-figure]::before {
+  display: none;
+}
+
+.code-block pre {
+  padding-top: 2.5rem !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  overflow-x: auto;
+}
+
+.code-block figcaption {
+  display: none;
+}
+
+/* Actions bar (lang label + copy button) */
+.code-actions {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 1.5rem;
+}
+
+.code-lang-label {
+  padding: 0 0.5rem;
+  height: 1.5rem;
+  line-height: 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.code-copy-btn {
+  padding: 0 0.5rem;
+  height: 1.5rem;
+  line-height: 1.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  transition: background 0.2s ease;
+  white-space: nowrap;
+}
+
+.code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.code-copy-btn.copied {
+  background: rgba(76, 175, 80, 0.8);
+  color: white;
+}
+
+/* Inline code */
+.prose :not(pre) > code {
+  background: #f1f5f9;
+  color: #be185d;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.875em;
+}
+
+.prose :not(pre) > code::before,
+.prose :not(pre) > code::after {
+  content: none;
+}

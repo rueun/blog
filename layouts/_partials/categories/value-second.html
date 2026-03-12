@@ -1,2 +1,0 @@
-{{ $categories := . }}
-{{- cond (and (reflect.IsSlice $categories) (gt (len $categories) 1)) (index $categories 1 | string) "" -}}

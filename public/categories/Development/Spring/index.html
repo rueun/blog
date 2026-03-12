@@ -1,0 +1,2042 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <!--
+Made with Book Theme
+https://github.com/alex-shpak/hugo-book
+-->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#343a40">
+<meta name="color-scheme" content="light dark"><meta property="og:url" content="http://localhost:1313/categories/Development/Spring/">
+  <meta property="og:site_name" content="Rueun&#39;s Blog">
+  <meta property="og:title" content="Spring">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="website">
+
+
+  <meta itemprop="name" content="Spring">
+
+<title>Spring | Rueun&#39;s Blog</title>
+<link rel="icon" href="/favicon.png" >
+<link rel="manifest" href="/manifest.json">
+<link rel="canonical" href="http://localhost:1313/categories/Development/Spring/">
+<link rel="stylesheet" href="/book.min.290b3c736c553a42c5c8bd9500a51fa139cf9e43fe6369ffc7045bfe1e7b6912.css" integrity="sha256-KQs8c2xVOkLFyL2VAKUfoTnPnkP&#43;Y2n/xwRb/h57aRI=" crossorigin="anonymous">
+
+
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/en.search.min.291b5ebdc6851a449675d08aa5a6ee93197089dbe320b2206f6557a82cc7205f.js" integrity="sha256-KRtevcaFGkSWddCKpabukxlwidvjILIgb2VXqCzHIF8=" crossorigin="anonymous"></script>
+
+
+<link rel="alternate" type="application/rss+xml" href="http://localhost:1313/categories/Development/Spring/index.xml" title="Rueun's Blog" />
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+<script defer src="/toc-highlight.min.345571564d0e814efc8b24d9118615eb238c1b178ead5f3b9443b308382e9788.js"></script>
+
+<script defer src="/scroll-progress.min.70ea3d37ce9c301a1b1fca53972d94f2f39da67725f7bbfcdd9242c7c26955c7.js"></script>
+  <script defer src="/fuse.min.js"></script>
+  <script defer src="/search/fuse.min.a1c47db207494ad9dfc4394ebc6b4ca5f4e1809fa3eaeb994553f99e2e37b27f.js"></script>
+  
+  <script defer src="/search/input.min.eed8c2f0b355986191da634451983f5f8cb56014f0948e1a8b88ee9a9e8bd2e1.js"></script>
+
+  
+
+
+</head>
+<body dir="ltr" class="book-kind-term book-type-categories book-layout-child">
+  <div id="scroll-progress" class="scroll-progress"></div>
+  <input type="checkbox" class="hidden toggle" id="menu-control" />
+  <input type="checkbox" class="hidden toggle" id="toc-control" />
+  <main class="container flex">
+    
+<aside class="book-menu" id="book-menu">
+  <div class="book-menu-content">
+    <button class="sidebar-toggle-btn" id="sidebar-toggle" title="사이드바 접기">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    
+  <nav>
+<div class="sidebar-profile">
+  <div class="profile-img-wrap">
+    <a href="/">
+      <img src="https://avatars.githubusercontent.com/u/64256409" alt="Profile" class="profile-img" />
+    </a>
+  </div>
+  <div class="sidebar-social">
+    
+    <a href="https://github.com/rueun" target="_blank" title="GitHub">
+      <i class="fa-brands fa-github"></i>
+    </a>
+    
+    <a href="/categories/" title="Categories">
+      <i class="fa-solid fa-folder"></i>
+    </a>
+    <a href="/tags/" title="Tags">
+      <i class="fa-solid fa-tags"></i>
+    </a>
+    
+    
+    
+  </div>
+</div>
+
+<h2 class="book-brand">
+  <a class="flex align-center" href="/"><span>Rueun&#39;s Blog</span>
+  </a>
+</h2>
+
+
+<div class="book-search hidden">
+  <div class="search-input-container">
+    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+    <kbd class="search-kbd">/</kbd>
+    <input type="text" id="book-search-input"
+      placeholder="를 눌러 검색하세요" aria-label="Search"
+      maxlength="64" data-hotkeys="s/" onkeydown="if(event.key==='Enter') goToSearchPage()" />
+  </div>
+  <div class="book-search-spinner hidden"></div>
+  <ul id="book-search-results"></ul>
+</div>
+<script>
+document.querySelector(".book-search").classList.remove("hidden");
+function goToSearchPage() {
+  const searchInput = document.getElementById('book-search-input');
+  const query = searchInput.value.trim();
+  if (query) {
+    window.location.href = '/search/?q=' + encodeURIComponent(query);
+  }
+}
+</script>
+
+
+
+
+<div class="book-categories">
+  <input type="checkbox" class="hidden toggle" id="categories-control" checked />
+  <label for="categories-control" class="categories-toggle categories-link">
+    <a href="/categories/">
+      <i class="fa-solid fa-folder"></i>
+      <span>전체</span>
+      <span class="category-count">(16)</span>
+    </a>
+    <i class="fa-solid fa-chevron-down categories-arrow"></i>
+  </label>
+
+  <ul class="categories-menu" id="categories-menu">
+    
+    
+      
+        
+        
+          
+            
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+            
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+            
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+      
+        
+        
+          
+
+          
+          
+            
+            
+              
+              
+            
+          
+        
+      
+    
+
+    
+
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+
+    <li>
+      
+      <input type="checkbox" class="hidden toggle" id="cat-CS" />
+      <label for="cat-CS" class="categories-toggle categories-link">
+        <a href="/categories/CS/">
+          <i class="fa-solid fa-folder"></i>
+          CS
+          <span class="category-count">(3)</span>
+        </a>
+        <i class="fa-solid fa-chevron-down categories-arrow"></i>
+      </label>
+      <ul>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+              
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/CS/Network/">
+            <i class="fa-solid fa-file"></i>
+            Network
+            <span class="category-count">(2)</span>
+          </a>
+        </li>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/CS/OS/">
+            <i class="fa-solid fa-file"></i>
+            OS
+            <span class="category-count">(1)</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+    </li>
+    
+
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+
+    <li>
+      
+      <input type="checkbox" class="hidden toggle" id="cat-DevOps" />
+      <label for="cat-DevOps" class="categories-toggle categories-link">
+        <a href="/categories/DevOps/">
+          <i class="fa-solid fa-folder"></i>
+          DevOps
+          <span class="category-count">(4)</span>
+        </a>
+        <i class="fa-solid fa-chevron-down categories-arrow"></i>
+      </label>
+      <ul>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/DevOps/CI/CD/">
+            <i class="fa-solid fa-file"></i>
+            CI/CD
+            <span class="category-count">(1)</span>
+          </a>
+        </li>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/DevOps/Docker/">
+            <i class="fa-solid fa-file"></i>
+            Docker
+            <span class="category-count">(2)</span>
+          </a>
+        </li>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/DevOps/Kubernetes/">
+            <i class="fa-solid fa-file"></i>
+            Kubernetes
+            <span class="category-count">(1)</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+    </li>
+    
+
+    
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+          
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+
+    <li>
+      
+      <input type="checkbox" class="hidden toggle" id="cat-Development" />
+      <label for="cat-Development" class="categories-toggle categories-link">
+        <a href="/categories/Development/">
+          <i class="fa-solid fa-folder"></i>
+          Development
+          <span class="category-count">(9)</span>
+        </a>
+        <i class="fa-solid fa-chevron-down categories-arrow"></i>
+      </label>
+      <ul>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/Development/Database/">
+            <i class="fa-solid fa-file"></i>
+            Database
+            <span class="category-count">(1)</span>
+          </a>
+        </li>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/Development/JPA/">
+            <i class="fa-solid fa-file"></i>
+            JPA
+            <span class="category-count">(2)</span>
+          </a>
+        </li>
+        
+
+        
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/Development/Java/">
+            <i class="fa-solid fa-file"></i>
+            Java
+            <span class="category-count">(2)</span>
+          </a>
+        </li>
+        
+
+        
+        
+          
+            
+              
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+              
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+          
+            
+          
+        
+
+        <li class="categories-link">
+          <a href="/categories/Development/Spring/">
+            <i class="fa-solid fa-file"></i>
+            Spring
+            <span class="category-count">(3)</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+    </li>
+    
+  </ul>
+</div>
+
+
+
+
+<div class="recent-posts">
+  <h3>최신 글</h3>
+  <ul>
+    
+    
+    <li>
+      <a href="/posts/spring-boot-intro/">Spring Boot 시작하기</a>
+    </li>
+    
+    <li>
+      <a href="/posts/spring-exception-handling/">Spring Boot 예외 처리 전략 - @ExceptionHandler와 @ControllerAdvice</a>
+    </li>
+    
+    <li>
+      <a href="/posts/java-basics/">Java 기초 정리</a>
+    </li>
+    
+    <li>
+      <a href="/posts/spring-security-jwt/">Spring Security &#43; JWT 인증 구현하기</a>
+    </li>
+    
+    <li>
+      <a href="/posts/hello-world/">Hello World - 첫 번째 포스트</a>
+    </li>
+    
+  </ul>
+</div>
+
+
+</nav>
+
+
+
+  <script>(function(){var e=document.querySelector("aside .book-menu-content");addEventListener("beforeunload",function(){localStorage.setItem("menu.scrollTop",e.scrollTop)}),e.scrollTop=localStorage.getItem("menu.scrollTop")})()</script>
+
+
+
+  </div>
+</aside>
+<div class="sidebar-hover-zone" id="sidebar-hover-zone"></div>
+<button class="sidebar-open-btn" id="sidebar-open-btn" title="사이드바 열기">
+  <i class="fa-solid fa-chevron-right"></i>
+</button>
+<script>
+(function() {
+  var menu = document.getElementById('book-menu');
+  var toggle = document.getElementById('sidebar-toggle');
+  var hoverZone = document.getElementById('sidebar-hover-zone');
+  var openBtn = document.getElementById('sidebar-open-btn');
+  if (!menu || !toggle || !hoverZone || !openBtn) return;
+
+  var mq = window.matchMedia('(min-width: 56rem)');
+
+  function collapse() {
+    menu.classList.add('collapsed');
+    hoverZone.style.display = 'block';
+  }
+
+  function expand() {
+    menu.classList.remove('collapsed');
+    hoverZone.style.display = 'none';
+    openBtn.classList.remove('visible');
+  }
+
+  toggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!mq.matches) return;
+    collapse();
+  });
+
+  hoverZone.addEventListener('mouseenter', function() {
+    openBtn.classList.add('visible');
+  });
+
+  hoverZone.addEventListener('mouseleave', function(e) {
+    if (!openBtn.contains(e.relatedTarget)) {
+      openBtn.classList.remove('visible');
+    }
+  });
+
+  openBtn.addEventListener('mouseleave', function(e) {
+    if (!hoverZone.contains(e.relatedTarget)) {
+      openBtn.classList.remove('visible');
+    }
+  });
+
+  openBtn.addEventListener('click', function() {
+    expand();
+  });
+})();
+</script>
+
+
+    <div class="book-page">
+      <header class="book-header hidden">
+        
+  <div class="flex align-center justify-between">
+  <label for="menu-control">
+    <img src="/icons/menu.svg" class="book-icon" alt="Menu" />
+  </label>
+
+  <h3>Spring</h3>
+
+  <div></div>
+</div>
+
+
+  
+
+      </header>
+
+      
+      
+<article class="markdown book-article">
+
+  
+  
+
+  
+    
+
+    
+      
+    
+  
+    
+
+    
+      
+    
+  
+    
+
+    
+  
+    
+
+    
+      
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+    
+
+    
+  
+
+  <div class="category-page-header">
+    <h1><i class="fa-solid fa-file"></i> Spring</h1>
+    <p><em class="category-page-count">3</em> posts</p>
+  </div>
+
+  
+  <div class="category-page-children">
+    <h2>Parent Category</h2>
+    <div class="category-page-chips">
+      <a href="/categories/Development/" class="category-page-chip">
+        <i class="fa-solid fa-folder-open"></i> Development
+      </a>
+    </div>
+  </div>
+  
+
+  
+    
+    <div class="post-list">
+      
+        <article class="post-item">
+  <div class="post-meta">
+    <time datetime="2026-03-05">
+      2026년 03월 05일
+    </time>
+    
+    <div class="post-categories">
+      <a href="/search/?category1=Development" class="category">
+          <i class="fa-solid fa-folder"></i> Development
+        </a>
+        <a href="/search/?category1=Development&category2=Spring" class="category">
+        <i class="fa-solid fa-file"></i> Spring
+        </a></div>
+    
+  </div>
+
+  <div class="post-content-area has-cover">
+    <div class="post-text-area">
+      <h2 class="post-title">
+        <a href="/posts/spring-boot-intro/">Spring Boot 시작하기</a>
+      </h2>
+      <div class="post-summary">
+        Spring Boot로 웹 애플리케이션을 시작하는 방법을 소개합니다. 프로젝트 생성부터 간단한 API 구현까지 다룹니다.
+      </div>
+      <div class="post-summary-mobile">
+        Spring Boot로 웹 애플리케이션을 시작하는 방법을 소개합니다. 프로젝트 생성부터 간단한 API 구현까지 다룹니다.
+      </div>
+      
+
+      
+      <div class="post-tags">
+        
+        <a href="/search/?tags=Spring-Boot" class="tag"><i class="fa-solid fa-tag"></i> Spring Boot</a>
+        
+        <a href="/search/?tags=Java" class="tag"><i class="fa-solid fa-tag"></i> Java</a>
+        
+        <a href="/search/?tags=Backend" class="tag"><i class="fa-solid fa-tag"></i> Backend</a>
+        
+      </div>
+      
+    </div>
+
+    
+    <div class="post-cover">
+      <img src="https://dl.dropboxusercontent.com/scl/fi/w0zho4wlgq6m8db5mvn9k/hugo-00-cover.webp?rlkey=et2tlzgb0h6blgf8klzbqjxem&amp;raw=1" alt="Cover Image" class="post-cover-img">
+    </div>
+    
+  </div>
+</article>
+
+      
+        <article class="post-item">
+  <div class="post-meta">
+    <time datetime="2026-03-04">
+      2026년 03월 04일
+    </time>
+    
+    <div class="post-categories">
+      <a href="/search/?category1=Development" class="category">
+          <i class="fa-solid fa-folder"></i> Development
+        </a>
+        <a href="/search/?category1=Development&category2=Spring" class="category">
+        <i class="fa-solid fa-file"></i> Spring
+        </a></div>
+    
+  </div>
+
+  <div class="post-content-area">
+    <div class="post-text-area">
+      <h2 class="post-title">
+        <a href="/posts/spring-exception-handling/">Spring Boot 예외 처리 전략 - @ExceptionHandler와 @ControllerAdvice</a>
+      </h2>
+      <div class="post-summary">
+        Spring Boot에서 전역 예외 처리를 구현하는 방법을 정리합니다. 커스텀 예외와 에러 응답 표준화를 다룹니다.
+      </div>
+      <div class="post-summary-mobile">
+        Spring Boot에서 전역 예외 처리를 구현하는 방법을 정리합니다. 커스텀 예외와 에러 응답 표준화를 다룹니다.
+      </div>
+      
+
+      
+      <div class="post-tags">
+        
+        <a href="/search/?tags=Spring-Boot" class="tag"><i class="fa-solid fa-tag"></i> Spring Boot</a>
+        
+        <a href="/search/?tags=Exception-Handling" class="tag"><i class="fa-solid fa-tag"></i> Exception Handling</a>
+        
+        <a href="/search/?tags=REST-API" class="tag"><i class="fa-solid fa-tag"></i> REST API</a>
+        
+        <a href="/search/?tags=Backend" class="tag"><i class="fa-solid fa-tag"></i> Backend</a>
+        
+      </div>
+      
+    </div>
+
+    
+  </div>
+</article>
+
+      
+        <article class="post-item">
+  <div class="post-meta">
+    <time datetime="2026-03-02">
+      2026년 03월 02일
+    </time>
+    
+    <div class="post-categories">
+      <a href="/search/?category1=Development" class="category">
+          <i class="fa-solid fa-folder"></i> Development
+        </a>
+        <a href="/search/?category1=Development&category2=Spring" class="category">
+        <i class="fa-solid fa-file"></i> Spring
+        </a></div>
+    
+  </div>
+
+  <div class="post-content-area">
+    <div class="post-text-area">
+      <h2 class="post-title">
+        <a href="/posts/spring-security-jwt/">Spring Security &#43; JWT 인증 구현하기</a>
+      </h2>
+      <div class="post-summary">
+        Spring Security와 JWT를 활용하여 토큰 기반 인증을 구현합니다. Access Token과 Refresh Token 전략을 다룹니다.
+      </div>
+      <div class="post-summary-mobile">
+        Spring Security와 JWT를 활용하여 토큰 기반 인증을 구현합니다. Access Token과 Refresh Token …
+      </div>
+      
+
+      
+      <div class="post-tags">
+        
+        <a href="/search/?tags=Spring-Security" class="tag"><i class="fa-solid fa-tag"></i> Spring Security</a>
+        
+        <a href="/search/?tags=JWT" class="tag"><i class="fa-solid fa-tag"></i> JWT</a>
+        
+        <a href="/search/?tags=Spring-Boot" class="tag"><i class="fa-solid fa-tag"></i> Spring Boot</a>
+        
+        <a href="/search/?tags=Authentication" class="tag"><i class="fa-solid fa-tag"></i> Authentication</a>
+        
+        <a href="/search/?tags=Backend" class="tag"><i class="fa-solid fa-tag"></i> Backend</a>
+        
+      </div>
+      
+    </div>
+
+    
+  </div>
+</article>
+
+      
+    </div>
+
+    
+
+
+  
+
+</article>
+
+      
+
+      <footer class="book-footer">
+        
+  
+
+  
+
+  <div class="flex flex-wrap justify-between">
+
+<div>
+
+</div>
+
+<div>
+
+</div>
+
+</div>
+
+
+
+
+
+
+
+
+        
+  
+
+        
+        
+  
+
+        
+  
+    <script>(function(){document.querySelectorAll("pre:has(code)").forEach(e=>{e.addEventListener("click",e.focus),e.addEventListener("copy",function(t){if(t.preventDefault(),navigator.clipboard){const t=window.getSelection().toString()||e.textContent;navigator.clipboard.writeText(t)}})})})()</script>
+  
+
+      </footer>
+
+      <label for="menu-control" class="hidden book-menu-overlay"></label>
+    </div>
+
+    
+  
+
+  </main>
+
+  
+  <div class="floating-nav">
+    <button class="floating-nav-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Go to top">
+      <i class="fa fa-chevron-up"></i>
+    </button>
+    <button class="floating-nav-btn" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})" title="Go to bottom">
+      <i class="fa fa-chevron-down"></i>
+    </button>
+    <button class="floating-nav-btn" onclick="history.back()" title="Go back">
+      <i class="fa-solid fa-arrow-left"></i>
+    </button>
+  </div>
+
+  
+  <button class="floating-toggle" id="floating-toggle" onclick="document.querySelector('.floating-nav').classList.toggle('open'); this.classList.toggle('open')">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+
+  
+  
+
+  
+  <script>
+  function getCodeText(block) {
+    var lines = block.querySelectorAll('pre code > span[style*="display:flex"]');
+    return Array.from(lines).map(function(line) {
+      
+      var spans = line.querySelectorAll(':scope > span');
+      if (spans.length > 1) {
+        return Array.from(spans).slice(1).map(function(s) { return s.textContent; }).join('');
+      }
+      return line.textContent;
+    }).join('');
+  }
+  function copyCode(button) {
+    var block = button.closest('.sc-codeblock');
+    if (!block) return;
+    var text = getCodeText(block);
+    navigator.clipboard.writeText(text).then(function() {
+      var icon = button.querySelector('i');
+      var origClass = icon.className;
+      icon.className = 'fa-solid fa-check';
+      button.childNodes.forEach(function(n) {
+        if (n.nodeType === 3 && n.textContent.trim()) n.textContent = ' COPIED';
+      });
+      button.classList.add('copied');
+      setTimeout(function() {
+        icon.className = origClass;
+        button.childNodes.forEach(function(n) {
+          if (n.nodeType === 3 && n.textContent.trim()) n.textContent = ' COPY';
+        });
+        button.classList.remove('copied');
+      }, 2000);
+    });
+  }
+  
+  document.addEventListener('copy', function(e) {
+    var sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    var block = sel.anchorNode;
+    while (block && !block.classList) block = block.parentNode;
+    if (!block) return;
+    block = block.closest ? block.closest('.sc-codeblock') : null;
+    if (!block) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', getCodeText(block));
+  });
+  </script>
+
+  <script src="/fuse.min.js"></script>
+  
+  <div class="search-modal-overlay" id="search-modal-overlay">
+    <div class="search-modal">
+      <div class="search-modal-input-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="search-modal-input" placeholder="검색어를 입력하세요" autocomplete="off" />
+        <kbd>ESC</kbd>
+      </div>
+      <div class="search-modal-results" id="search-modal-results"></div>
+      <div class="search-modal-footer">
+        <span><kbd>/</kbd> 로 검색</span>
+        <span><kbd>Enter</kbd> 검색 페이지로 이동</span>
+      </div>
+    </div>
+  </div>
+  
+  
+  <script>
+  (function() {
+    var overlay = document.getElementById('search-modal-overlay');
+    var input = document.getElementById('search-modal-input');
+    var results = document.getElementById('search-modal-results');
+    var fuseIndex = null;
+    var selectedIndex = -1;
+
+    function openModal() {
+      overlay.classList.add('open');
+      input.value = '';
+      results.innerHTML = '';
+      selectedIndex = -1;
+      setTimeout(function() { input.focus(); }, 50);
+    }
+
+    function closeModal() {
+      overlay.classList.remove('open');
+    }
+
+    function initFuse() {
+      if (fuseIndex) return Promise.resolve();
+      return fetch('\/en.search-data.min.27e170fa5e30bb19ca6f027f29e259e0801147851308493c1de5811687d2c993.json')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          fuseIndex = new Fuse(data, {
+            includeScore: true,
+            threshold: 0.3,
+            ignoreLocation: true,
+            keys: [
+              { name: 'title', weight: 0.7 },
+              { name: 'content', weight: 0.2 },
+              { name: 'description', weight: 0.1 }
+            ]
+          });
+        });
+    }
+
+    function search() {
+      results.innerHTML = '';
+      selectedIndex = -1;
+      if (!input.value.trim()) return;
+      initFuse().then(function() {
+        var hits = fuseIndex.search(input.value.trim()).slice(0, 8);
+        hits.forEach(function(hit, i) {
+          var a = document.createElement('a');
+          a.className = 'search-modal-item';
+          a.href = hit.item.href;
+          var cats = (hit.item.categories || []).join(' / ');
+          a.innerHTML = '<div class="search-modal-item-title">' + hit.item.title + '</div>' +
+            '<div class="search-modal-item-meta">' + hit.item.date + (cats ? ' · ' + cats : '') + '</div>';
+          results.appendChild(a);
+        });
+        if (hits.length === 0) {
+          results.innerHTML = '<div style="padding:1rem 1.5rem;color:var(--gray-500);font-size:0.875rem;">검색 결과가 없습니다.</div>';
+        }
+      });
+    }
+
+    function updateSelection() {
+      var items = results.querySelectorAll('.search-modal-item');
+      items.forEach(function(item, i) {
+        item.classList.toggle('active', i === selectedIndex);
+      });
+    }
+
+    
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        openModal();
+      }
+    });
+
+    
+    document.addEventListener('keydown', function(e) {
+      if (!overlay.classList.contains('open')) return;
+      if (e.key === 'Escape') closeModal();
+    });
+
+    
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeModal();
+    });
+
+    
+    var debounceTimer;
+    input.addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(search, 200);
+    });
+
+    
+    input.addEventListener('keydown', function(e) {
+      var items = results.querySelectorAll('.search-modal-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+        updateSelection();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        updateSelection();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+          window.location.href = items[selectedIndex].href;
+        } else if (input.value.trim()) {
+          window.location.href = '/search/?query=' + encodeURIComponent(input.value.trim());
+        }
+      }
+    });
+  })();
+  </script>
+
+  
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>TCP on Rueun&#39;s Blog</title>
+    <link>http://localhost:1313/tags/TCP/</link>
+    <description>Recent content in TCP on Rueun&#39;s Blog</description>
+    <generator>Hugo</generator>
+    <language>en</language>
+    <lastBuildDate>Sun, 08 Feb 2026 00:00:00 +0000</lastBuildDate>
+    <atom:link href="http://localhost:1313/tags/TCP/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>TCP/IP 프로토콜과 3-Way Handshake</title>
+      <link>http://localhost:1313/posts/tcp-ip/</link>
+      <pubDate>Sun, 08 Feb 2026 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/posts/tcp-ip/</guid>
+      <description>&lt;h2 id=&#34;tcpip-프로토콜-스택&#34;&gt;TCP/IP 프로토콜 스택&lt;a class=&#34;anchor&#34; href=&#34;#tcpip-%ed%94%84%eb%a1%9c%ed%86%a0%ec%bd%9c-%ec%8a%a4%ed%83%9d&#34;&gt;#&lt;/a&gt;&lt;/h2&gt;&#xA;&lt;table&gt;&#xA;  &lt;thead&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;th&gt;계층&lt;/th&gt;&#xA;          &lt;th&gt;프로토콜&lt;/th&gt;&#xA;      &lt;/tr&gt;&#xA;  &lt;/thead&gt;&#xA;  &lt;tbody&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;애플리케이션&lt;/td&gt;&#xA;          &lt;td&gt;HTTP, FTP, DNS&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;전송&lt;/td&gt;&#xA;          &lt;td&gt;TCP, UDP&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;네트워크&lt;/td&gt;&#xA;          &lt;td&gt;IP, ICMP&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;데이터 링크&lt;/td&gt;&#xA;          &lt;td&gt;Ethernet, Wi-Fi&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;  &lt;/tbody&gt;&#xA;&lt;/table&gt;&#xA;&lt;h2 id=&#34;tcp-vs-udp&#34;&gt;TCP vs UDP&lt;a class=&#34;anchor&#34; href=&#34;#tcp-vs-udp&#34;&gt;#&lt;/a&gt;&lt;/h2&gt;&#xA;&lt;table&gt;&#xA;  &lt;thead&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;th&gt;구분&lt;/th&gt;&#xA;          &lt;th&gt;TCP&lt;/th&gt;&#xA;          &lt;th&gt;UDP&lt;/th&gt;&#xA;      &lt;/tr&gt;&#xA;  &lt;/thead&gt;&#xA;  &lt;tbody&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;연결&lt;/td&gt;&#xA;          &lt;td&gt;연결 지향&lt;/td&gt;&#xA;          &lt;td&gt;비연결&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;신뢰성&lt;/td&gt;&#xA;          &lt;td&gt;보장&lt;/td&gt;&#xA;          &lt;td&gt;미보장&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;순서&lt;/td&gt;&#xA;          &lt;td&gt;보장&lt;/td&gt;&#xA;          &lt;td&gt;미보장&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;속도&lt;/td&gt;&#xA;          &lt;td&gt;상대적 느림&lt;/td&gt;&#xA;          &lt;td&gt;빠름&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;  &lt;/tbody&gt;&#xA;&lt;/table&gt;&#xA;&lt;h2 id=&#34;3-way-handshake&#34;&gt;3-Way Handshake&lt;a class=&#34;anchor&#34; href=&#34;#3-way-handshake&#34;&gt;#&lt;/a&gt;&lt;/h2&gt;&#xA;&lt;p&gt;TCP 연결 수립 과정:&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;&lt;strong&gt;SYN&lt;/strong&gt;: 클라이언트 → 서버 (연결 요청)&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;SYN+ACK&lt;/strong&gt;: 서버 → 클라이언트 (요청 수락)&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;ACK&lt;/strong&gt;: 클라이언트 → 서버 (확인)&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;h2 id=&#34;4-way-handshake-연결-종료&#34;&gt;4-Way Handshake (연결 종료)&lt;a class=&#34;anchor&#34; href=&#34;#4-way-handshake-%ec%97%b0%ea%b2%b0-%ec%a2%85%eb%a3%8c&#34;&gt;#&lt;/a&gt;&lt;/h2&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;&lt;strong&gt;FIN&lt;/strong&gt;: 클라이언트 → 서버&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;ACK&lt;/strong&gt;: 서버 → 클라이언트&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;FIN&lt;/strong&gt;: 서버 → 클라이언트&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;ACK&lt;/strong&gt;: 클라이언트 → 서버&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;h2 id=&#34;정리&#34;&gt;정리&lt;a class=&#34;anchor&#34; href=&#34;#%ec%a0%95%eb%a6%ac&#34;&gt;#&lt;/a&gt;&lt;/h2&gt;&#xA;&lt;p&gt;TCP의 연결 수립과 종료 과정을 이해하면 네트워크 문제를 진단하는 데 큰 도움이 됩니다.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
