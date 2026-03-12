@@ -30,6 +30,13 @@ yarn-error.log*
 # vercel
 .vercel
 
+# IDE
+.idea/
+.vscode/
+
+# Hugo
+.hugo_build.lock
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
