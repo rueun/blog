@@ -65,7 +65,11 @@ export default function TableOfContents({ headings }: Props) {
     const el = document.getElementById(id)
     if (el) {
       const top = el.getBoundingClientRect().top + window.scrollY - 24
-      window.scrollTo({ top, behavior: 'instant' })
+      const totalHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight
+      const targetProgress = totalHeight > 0 ? Math.min(100, (top / totalHeight) * 100) : 0
+      // 프로그래스바에 목표값 즉시 전달
+      window.dispatchEvent(new CustomEvent('toc-navigate', { detail: { progress: targetProgress } }))
+      window.scrollTo({ top, behavior: 'smooth' })
       setActiveId(id)
     }
     setMobileOpen(false)
