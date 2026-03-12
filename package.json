@@ -23,6 +23,9 @@
     "unist-util-visit": "^5.0.0",
     "reading-time": "^1.5.0"
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
