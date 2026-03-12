@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export default function ReadingProgress() {
   const [progress, setProgress] = useState(0)
-  const [transition, setTransition] = useState('width 200ms ease-out')
+  const [transition, setTransition] = useState('width 600ms ease')
   const locked = useRef(false)
   const unlockTimer = useRef<ReturnType<typeof setTimeout>>()
 
