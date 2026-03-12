@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export default function ReadingProgress() {
   const [progress, setProgress] = useState(0)
+  const [transition, setTransition] = useState('width 80ms linear')
   const locked = useRef(false)
   const unlockTimer = useRef<ReturnType<typeof setTimeout>>()
 
@@ -16,14 +17,16 @@ export default function ReadingProgress() {
       setProgress(scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0)
     }
 
-    // TOC 클릭 시: 프로그래스바 즉시 목표값으로 세팅 후 스크롤 중 업데이트 잠금
+    // TOC 클릭 시: 프로그래스바 부드럽게 목표값으로 이동 후 스크롤 중 업데이트 잠금
     const handleTocNavigate = (e: Event) => {
       const { progress: target } = (e as CustomEvent).detail
+      setTransition('width 600ms ease')
       setProgress(target)
       locked.current = true
       clearTimeout(unlockTimer.current)
       unlockTimer.current = setTimeout(() => {
         locked.current = false
+        setTransition('width 80ms linear')
       }, 800)
     }
 
@@ -40,7 +43,7 @@ export default function ReadingProgress() {
     <div className="fixed top-0 left-0 right-0 z-50 h-[3px] bg-transparent">
       <div
         className="h-full bg-gradient-to-r from-[#f472b6] via-[#c084fc] to-[#7c3aed]"
-        style={{ width: `${progress}%`, transition: 'width 80ms linear' }}
+        style={{ width: `${progress}%`, transition }}
       />
     </div>
   )
