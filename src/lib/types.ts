@@ -1,3 +1,14 @@
+export interface CategoryChild {
+  name: string
+  count: number
+}
+
+export interface CategoryTreeItem {
+  name: string
+  count: number
+  children: CategoryChild[]
+}
+
 export interface PostMeta {
   slug: string
   title: string

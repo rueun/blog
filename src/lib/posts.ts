@@ -9,7 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import rehypePrettyCode from 'rehype-pretty-code'
 import rehypeSlug from 'rehype-slug'
 import readingTime from 'reading-time'
-import type { PostMeta, Post, Heading } from './types'
+import type { PostMeta, Post, Heading, CategoryTreeItem } from './types'
 
 function extractHeadings(html: string): Heading[] {
   const matches = [...html.matchAll(/<h([1-3])[^>]*\sid="([^"]*)"[^>]*>(.*?)<\/h[1-3]>/gs)]
@@ -104,15 +104,46 @@ export function getAdjacentPosts(slug: string): { prev: PostMeta | null; next: P
   }
 }
 
-export function getCategoryGroups(): { name: string; count: number }[] {
+export function getAllSeries(): { name: string; posts: PostMeta[] }[] {
   const posts = getAllPostMetas()
-  const counts: Record<string, number> = {}
+  const seriesMap: Record<string, PostMeta[]> = {}
   posts.forEach((post) => {
-    ;(post.categories ?? []).forEach((cat) => {
-      counts[cat] = (counts[cat] ?? 0) + 1
-    })
+    if (post.series) {
+      if (!seriesMap[post.series]) seriesMap[post.series] = []
+      seriesMap[post.series].push(post)
+    }
   })
-  return Object.entries(counts)
-    .map(([name, count]) => ({ name, count }))
+  return Object.entries(seriesMap)
+    .map(([name, posts]) => ({
+      name,
+      posts: posts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export function getCategoryTree(): CategoryTreeItem[] {
+  const posts = getAllPostMetas()
+  const tree: Record<string, { count: number; children: Record<string, number> }> = {}
+
+  posts.forEach((post) => {
+    const cats = post.categories ?? []
+    if (cats.length === 0) return
+    const parent = cats[0]
+    if (!tree[parent]) tree[parent] = { count: 0, children: {} }
+    tree[parent].count++
+    for (let i = 1; i < cats.length; i++) {
+      const child = cats[i]
+      tree[parent].children[child] = (tree[parent].children[child] ?? 0) + 1
+    }
+  })
+
+  return Object.entries(tree)
+    .map(([name, { count, children }]) => ({
+      name,
+      count,
+      children: Object.entries(children)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
