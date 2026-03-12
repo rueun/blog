@@ -1,5 +1,6 @@
 {
   "framework": "hugo",
   "buildCommand": "hugo --minify",
-  "outputDirectory": "public"
+  "outputDirectory": "public",
+  "installCommand": "git submodule update --init --recursive"
 }
