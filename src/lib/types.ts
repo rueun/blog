@@ -10,7 +10,14 @@ export interface PostMeta {
   cover?: string
 }
 
+export interface Heading {
+  id: string
+  text: string
+  level: number
+}
+
 export interface Post extends PostMeta {
   contentHtml: string
   readingTime: string
+  headings: Heading[]
 }

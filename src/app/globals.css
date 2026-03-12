@@ -30,13 +30,17 @@
   pointer-events: none;
 }
 
-.code-block figure[data-rehype-pretty-code-figure] {
+/* figure/pre 내부 스타일 초기화 */
+.code-block figure {
   margin: 0 !important;
   background: transparent !important;
-  border-radius: 0 !important;
 }
 
-.code-block figure[data-rehype-pretty-code-figure]::before {
+.code-block figure::before {
+  display: none !important;
+}
+
+.code-block figcaption {
   display: none !important;
 }
 
@@ -46,10 +50,6 @@
   border-radius: 0 !important;
   background: transparent !important;
   overflow-x: auto;
-}
-
-.code-block figcaption {
-  display: none !important;
 }
 
 /* Actions bar (lang label + copy button) */

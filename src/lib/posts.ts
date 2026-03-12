@@ -8,45 +8,22 @@ import remarkRehype from 'remark-rehype'
 import rehypeStringify from 'rehype-stringify'
 import rehypePrettyCode from 'rehype-pretty-code'
 import rehypeSlug from 'rehype-slug'
-import { visit } from 'unist-util-visit'
 import readingTime from 'reading-time'
-import type { Node, Parent } from 'unist'
-import type { Element } from 'hast'
-import type { PostMeta, Post } from './types'
+import type { PostMeta, Post, Heading } from './types'
+
+function extractHeadings(html: string): Heading[] {
+  const matches = [...html.matchAll(/<h([1-3])[^>]*\sid="([^"]*)"[^>]*>(.*?)<\/h[1-3]>/gs)]
+  return matches.map((m) => ({
+    level: parseInt(m[1]),
+    id: m[2],
+    text: m[3].replace(/<[^>]+>/g, '').trim(),
+  }))
+}
 
 const postsDir = path.join(process.cwd(), 'posts')
 
 function removeHugoShortcodes(content: string): string {
   return content.replace(/\{\{<\s*.*?\s*>\}\}/gs, '')
-}
-
-function rehypeMacCodeBlock() {
-  return (tree: Node) => {
-    visit(tree, 'element', (node: Element, index: number | undefined, parent: Parent | undefined) => {
-      if (node.tagName !== 'figure') return
-      const props = node.properties as Record<string, unknown>
-      // 값이 "" (빈 문자열)일 수 있으므로 key 존재 여부로 체크
-      if (!('dataRehypePrettyCodeFigure' in props)) return
-
-      const pre = node.children.find(
-        (c): c is Element => c.type === 'element' && (c as Element).tagName === 'pre'
-      )
-      const lang = (pre?.properties as Record<string, unknown>)?.['dataLanguage'] as string | undefined
-
-      if (parent && index !== undefined) {
-        const wrapper: Element = {
-          type: 'element',
-          tagName: 'div',
-          properties: {
-            className: ['code-block'],
-            'data-lang': lang ?? '',
-          },
-          children: [node],
-        }
-        ;(parent as Parent & { children: Node[] }).children[index] = wrapper
-      }
-    })
-  }
 }
 
 export function getAllPostSlugs(): string[] {
@@ -90,11 +67,11 @@ export async function getPost(slug: string): Promise<Post> {
       theme: 'dracula',
       keepBackground: false,
     })
-    .use(rehypeMacCodeBlock)
     .use(rehypeStringify, { allowDangerousHtml: true })
     .process(clean)
 
   const rt = readingTime(content)
+  const contentHtml = String(file)
 
   return {
     slug,
@@ -106,8 +83,9 @@ export async function getPost(slug: string): Promise<Post> {
     tags: data.tags ?? [],
     categories: data.categories ?? [],
     cover: data.cover,
-    contentHtml: String(file),
+    contentHtml,
     readingTime: rt.text,
+    headings: extractHeadings(contentHtml),
   }
 }
 
