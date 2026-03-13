@@ -46,6 +46,9 @@
 
 .code-block pre {
   padding-top: 2.5rem !important;
+  padding-bottom: 1.5rem !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
   margin: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -55,7 +58,7 @@
 /* Actions bar (lang label + copy button) */
 .code-actions {
   position: absolute;
-  top: 0.4rem;
+  top: 0.5rem;
   right: 0.5rem;
   z-index: 3;
   display: flex;

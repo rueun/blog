@@ -349,16 +349,18 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
         </div>
       )}
 
-      {/* 모바일: 햄버거 버튼 */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-40 bg-[#1e1e2e] border border-[#313244] text-gray-400 hover:text-white p-2 rounded-lg shadow transition-colors"
-        aria-label="메뉴 열기"
-      >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
-      </button>
+      {/* 모바일: 햄버거 버튼 (닫혔을 때만) */}
+      {!mobileOpen && (
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="lg:hidden fixed top-4 left-4 z-40 bg-[#1e1e2e] border border-[#313244] text-gray-400 hover:text-white p-2 rounded-lg shadow transition-colors"
+          aria-label="메뉴 열기"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </button>
+      )}
 
       {/* 모바일: 백드롭 */}
       {mobileOpen && (

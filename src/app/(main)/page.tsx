@@ -11,7 +11,7 @@ export default async function Home({ searchParams }: Props) {
   const posts = category ? allPosts.filter(p => p.categories?.includes(category)) : allPosts
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-4xl mx-auto px-4 py-10 pt-16 lg:pt-10">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">
           {category ? category : 'All Posts'}

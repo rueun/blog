@@ -5,7 +5,7 @@ export default function SeriesPage() {
   const seriesList = getAllSeries()
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-4xl mx-auto px-4 py-10 pt-16 lg:pt-10">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">시리즈</h1>
         <p className="text-gray-400 text-sm">{seriesList.length}개의 시리즈</p>
