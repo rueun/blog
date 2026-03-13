@@ -28,7 +28,7 @@ export default function SeriesToc({ seriesName, posts, currentSlug }: Props) {
         <h3 className="font-bold text-gray-900 dark:text-white text-base leading-snug flex-1 pr-4">
           {seriesName}
         </h3>
-        <div className="text-blue-500 dark:text-[#93c5fd] shrink-0 mt-0.5">
+        <div className="text-[#7c3aed] dark:text-[#c084fc] shrink-0 mt-0.5">
           <svg width="22" height="26" viewBox="0 0 22 26" fill="currentColor">
             <path d="M3 0h16a2 2 0 0 1 2 2v22l-9-5-9 5V2a2 2 0 0 1 2-2z"/>
           </svg>
@@ -44,13 +44,13 @@ export default function SeriesToc({ seriesName, posts, currentSlug }: Props) {
                 {idx + 1}.
               </span>
               {post.slug === currentSlug ? (
-                <span className="text-blue-600 dark:text-[#93c5fd] font-semibold leading-relaxed">
+                <span className="text-[#7c3aed] dark:text-[#c084fc] font-semibold leading-relaxed">
                   {post.title}
                 </span>
               ) : (
                 <Link
                   href={`/posts/${post.slug}`}
-                  className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-gray-200 transition-colors leading-relaxed"
+                  className="text-gray-600 dark:text-gray-400 hover:text-[#7c3aed] dark:hover:text-gray-200 transition-colors leading-relaxed"
                 >
                   {post.title}
                 </Link>

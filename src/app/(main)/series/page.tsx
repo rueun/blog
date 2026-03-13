@@ -17,7 +17,7 @@ export default function SeriesPage() {
             {/* 시리즈 헤더 */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="text-blue-500 dark:text-[#93c5fd]">
+                <div className="text-[#7c3aed] dark:text-[#c084fc]">
                   <svg width="20" height="24" viewBox="0 0 22 26" fill="currentColor">
                     <path d="M3 0h16a2 2 0 0 1 2 2v22l-9-5-9 5V2a2 2 0 0 1 2-2z"/>
                   </svg>
@@ -36,7 +36,7 @@ export default function SeriesPage() {
                   <span className="text-gray-400 dark:text-gray-600 shrink-0 w-5 pt-px text-xs leading-relaxed">{idx + 1}.</span>
                   <Link
                     href={`/posts/${post.slug}`}
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-[#93c5fd] transition-colors leading-relaxed flex-1"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7c3aed] dark:hover:text-[#c084fc] transition-colors leading-relaxed flex-1"
                   >
                     {post.title}
                   </Link>

@@ -80,7 +80,7 @@ export default function TableOfContents({ headings }: Props) {
   return (
     <>
       {/* Desktop: fixed 사이드바 - 레이아웃에 영향 없이 오른쪽에 고정 */}
-      <div className="hidden xl:block fixed top-24 right-8 w-52 max-h-[calc(100vh-8rem)] overflow-y-auto">
+      <div className="hidden 2xl:block fixed top-24 right-8 w-56 max-h-[calc(100vh-8rem)] overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-sm p-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">목차</p>
         <TocList headings={headings} activeId={activeId} onClickItem={handleClick} />
       </div>
@@ -88,7 +88,7 @@ export default function TableOfContents({ headings }: Props) {
       {/* Mobile: floating hamburger button (xl 미만에서만) */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="xl:hidden fixed bottom-6 right-6 z-40 w-12 h-12 bg-[#7c3aed] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#6d28d9] transition-colors"
+        className="2xl:hidden fixed bottom-6 right-6 z-40 w-12 h-12 bg-[#7c3aed] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#6d28d9] transition-colors"
         aria-label="목차 열기"
       >
         <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
@@ -99,14 +99,14 @@ export default function TableOfContents({ headings }: Props) {
       {/* Mobile: backdrop */}
       {mobileOpen && (
         <div
-          className="xl:hidden fixed inset-0 z-40 bg-black/40"
+          className="2xl:hidden fixed inset-0 z-40 bg-black/40"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Mobile: bottom drawer */}
       <div
-        className={`xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl transition-transform duration-300 ${
+        className={`2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl transition-transform duration-300 ${
           mobileOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
       >

@@ -3,6 +3,7 @@ import MdxContent from '@/components/MdxContent'
 import PostNav from '@/components/PostNav'
 import SeriesToc from '@/components/SeriesToc'
 import TableOfContents from '@/components/TableOfContents'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ slug: string }> }
@@ -37,13 +38,23 @@ export default async function PostPage({ params }: Props) {
   const categories = Array.isArray(post.categories) ? post.categories : []
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-16">
+    <div className="max-w-3xl mx-auto px-6 sm:px-8 md:px-4 py-16">
       <article>
         {/* 포스트 헤더 */}
         <header className="text-center mb-10">
           {categories.length > 0 && (
             <p className="text-sm text-gray-400 mb-6">
-              {categories.join(' / ')}
+              {categories.map((cat, i) => (
+                <span key={cat}>
+                  {i > 0 && ' / '}
+                  <Link
+                    href={`/category/${encodeURIComponent(cat)}`}
+                    className="hover:text-[#7c3aed] transition-colors"
+                  >
+                    {cat}
+                  </Link>
+                </span>
+              ))}
             </p>
           )}
           <h1 className="text-4xl font-bold text-gray-900 leading-tight mb-6">
