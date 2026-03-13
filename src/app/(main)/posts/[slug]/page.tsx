@@ -4,6 +4,7 @@ import PostNav from '@/components/PostNav'
 import SeriesToc from '@/components/SeriesToc'
 import TableOfContents from '@/components/TableOfContents'
 import Link from 'next/link'
+import GiscusComments from '@/components/GiscusComments'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ slug: string }> }
@@ -74,6 +75,7 @@ export default async function PostPage({ params }: Props) {
         <MdxContent html={post.contentHtml} />
 
         <PostNav prev={prev} next={next} />
+        <GiscusComments />
       </article>
 
       <TableOfContents headings={post.headings} />
