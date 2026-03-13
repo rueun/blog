@@ -3,6 +3,35 @@
 @tailwind utilities;
 
 /* ==========================================
+   Blinking cursor animation
+   ========================================== */
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* ==========================================
+   Subtle grid background
+   ========================================== */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(16, 185, 129, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==========================================
    Mac-style code block
    ========================================== */
 
@@ -109,10 +138,57 @@
   scroll-margin-top: 1.5rem;
 }
 
+/* ==========================================
+   Dark prose styles
+   ========================================== */
+
+.prose {
+  color: #8b949e;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  color: #e6edf3;
+}
+
+.prose a {
+  color: #a78bfa;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+  transition: border-color 0.15s;
+}
+
+.prose a:hover {
+  border-bottom-color: #a78bfa;
+}
+
+.prose strong {
+  color: #e6edf3;
+}
+
+.prose blockquote {
+  border-left-color: #30363d;
+  color: #8b949e;
+}
+
+.prose hr {
+  border-color: #30363d;
+}
+
+.prose ul li::marker,
+.prose ol li::marker {
+  color: #484f58;
+}
+
 /* Inline code */
 .prose :not(pre) > code {
-  background: #f1f5f9;
-  color: #be185d;
+  background: #161b22;
+  color: #f472b6;
+  border: 1px solid #30363d;
   padding: 0.15em 0.4em;
   border-radius: 4px;
   font-size: 0.875em;

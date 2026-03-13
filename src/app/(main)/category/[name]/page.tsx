@@ -1,5 +1,6 @@
-import { getAllPostMetas, getAllPostSlugs } from '@/lib/posts'
+import { getAllPostMetas } from '@/lib/posts'
 import PostCard from '@/components/PostCard'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 type Props = { params: Promise<{ name: string }> }
@@ -20,15 +21,27 @@ export default async function CategoryPage({ params }: Props) {
   if (posts.length === 0) notFound()
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10 pt-16 lg:pt-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">{category}</h1>
-        <p className="text-gray-400 text-sm">{posts.length}개의 글</p>
-      </div>
-      <div className="grid gap-4">
-        {posts.map((post) => (
-          <PostCard key={post.slug} post={post} />
-        ))}
+    <div className="relative z-[1]">
+      <div className="max-w-3xl mx-auto px-6 pt-16 pb-10">
+        {/* Breadcrumb */}
+        <div className="font-mono text-xs text-[#484f58] mb-5 flex items-center gap-1.5">
+          <Link href="/blog" className="hover:text-[#8b949e] transition-colors">
+            blog
+          </Link>
+          <span className="text-[#30363d]">/</span>
+          <span className="text-[#8b949e]">{category}</span>
+        </div>
+
+        <h1 className="text-3xl font-black text-[#e6edf3] mb-2">{category}</h1>
+        <p className="font-mono text-sm text-[#484f58] mb-10">
+          <span className="text-[#10b981]">{posts.length}개</span>의 글
+        </p>
+
+        <div className="flex flex-col gap-3">
+          {posts.map((post) => (
+            <PostCard key={post.slug} post={post} />
+          ))}
+        </div>
       </div>
     </div>
   )

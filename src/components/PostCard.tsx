@@ -1,46 +1,54 @@
 import Link from 'next/link'
 import type { PostMeta } from '@/lib/types'
 
+function getCategoryColor(categories: string[]): string {
+  const cat = (categories?.[0] ?? '').toLowerCase()
+  if (cat.includes('spring') || cat.includes('java') || cat.includes('jpa')) return '#a78bfa'
+  if (cat.includes('devops') || cat.includes('docker')) return '#10b981'
+  if (cat.includes('cs') || cat.includes('network')) return '#22d3ee'
+  if (cat.includes('db') || cat.includes('database')) return '#f59e0b'
+  return '#8b949e'
+}
+
 export default function PostCard({ post }: { post: PostMeta }) {
-  const formattedDate = new Date(post.date).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  const color = getCategoryColor(post.categories ?? [])
+  const cat = post.categories?.[0] ?? 'etc'
+  const date = post.date
+    ? '@' + new Date(post.date).toISOString().split('T')[0]
+    : ''
 
   return (
-    <article className="border border-gray-200 rounded-xl p-6 hover:border-[#cba6f7] hover:shadow-sm transition-all group">
-      <Link href={`/posts/${post.slug}`}>
-        <h2 className="text-xl font-bold mb-2 group-hover:text-[#7c3aed] transition-colors">
-          {post.title}
-        </h2>
-      </Link>
-      <div className="flex items-center gap-3 text-sm text-gray-400 mb-3">
-        <span>{formattedDate}</span>
-        {post.series && (
-          <>
-            <span>·</span>
-            <span className="text-[#7c3aed]">{post.series}</span>
-          </>
-        )}
+    <Link
+      href={`/posts/${post.slug}`}
+      className="block bg-[#161b22] border border-[#30363d] rounded-xl p-4 mb-2 hover:bg-[#1c2230] hover:border-[#484f58] transition-all group"
+      style={{ borderLeft: `3px solid ${color}` }}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="font-mono text-xs font-bold" style={{ color }}>
+          #{cat}
+        </span>
+        <span className="font-mono text-[11px] text-[#484f58]">{date}</span>
       </div>
-      {post.description && (
-        <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">
-          {post.description}
+      <div className="font-bold text-[#e6edf3] group-hover:text-[#a78bfa] transition-colors text-sm mb-1.5 leading-snug">
+        {post.title}
+      </div>
+      {(post.description || post.summary) && (
+        <p className="text-xs text-[#8b949e] mb-3 line-clamp-2 leading-relaxed">
+          {post.description || post.summary}
         </p>
       )}
       {post.tags && post.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {post.tags.map((tag) => (
+        <div className="flex flex-wrap gap-1">
+          {post.tags.slice(0, 4).map((tag) => (
             <span
               key={tag}
-              className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs"
+              className="font-mono text-[10px] text-[#484f58] bg-white/4 border border-[#21262d] px-1.5 py-0.5 rounded"
             >
               #{tag}
             </span>
           ))}
         </div>
       )}
-    </article>
+    </Link>
   )
 }

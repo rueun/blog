@@ -19,7 +19,7 @@ export default function GiscusComments() {
     script.setAttribute('data-reactions-enabled', '1')
     script.setAttribute('data-emit-metadata', '0')
     script.setAttribute('data-input-position', 'bottom')
-    script.setAttribute('data-theme', 'light')
+    script.setAttribute('data-theme', 'dark')
     script.setAttribute('data-lang', 'ko')
     script.setAttribute('crossorigin', 'anonymous')
     script.async = true

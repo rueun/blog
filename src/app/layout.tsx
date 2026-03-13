@@ -1,8 +1,13 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  weight: ['400', '500', '600', '700'],
+})
 
 export const metadata: Metadata = {
   title: {
@@ -15,11 +20,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body className={`${inter.className} bg-white min-h-screen flex flex-col`} suppressHydrationWarning>
-        <main className="flex-1">{children}</main>
-        <footer className="border-t border-gray-100 py-8 text-center text-gray-400 text-sm mt-16">
-          © 2026 Rueun. All rights reserved.
-        </footer>
+      <body
+        className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} bg-[#0d1117] min-h-screen flex flex-col`}
+        suppressHydrationWarning
+      >
+        {children}
       </body>
     </html>
   )

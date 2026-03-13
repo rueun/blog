@@ -22,37 +22,49 @@ export default function SeriesToc({ seriesName, posts, currentSlug }: Props) {
   const nextPost = currentIndex < total - 1 ? posts[currentIndex + 1] : null
 
   return (
-    <div className="bg-white dark:bg-[#1e1e2e] rounded-xl mb-8 overflow-hidden border border-gray-200 dark:border-[#2d2d44]">
-      {/* 헤더 */}
+    <div className="bg-[#161b22] border border-[#30363d] border-l-[3px] border-l-[#10b981] rounded-2xl mb-8 overflow-hidden">
+      {/* Header */}
       <div className="flex items-start justify-between px-5 pt-5 pb-4">
-        <h3 className="font-bold text-gray-900 dark:text-white text-base leading-snug flex-1 pr-4">
-          {seriesName}
-        </h3>
-        <div className="text-[#7c3aed] dark:text-[#c084fc] shrink-0 mt-0.5">
-          <svg width="22" height="26" viewBox="0 0 22 26" fill="currentColor">
-            <path d="M3 0h16a2 2 0 0 1 2 2v22l-9-5-9 5V2a2 2 0 0 1 2-2z"/>
-          </svg>
+        <div className="flex items-center gap-2.5 flex-1 pr-4">
+          <span className="text-lg">📚</span>
+          <h3 className="font-bold text-[#e6edf3] text-sm leading-snug">{seriesName}</h3>
         </div>
+        <button
+          onClick={() => setOpen(!open)}
+          className="font-mono text-[11px] text-[#484f58] bg-transparent border border-[#30363d] rounded-md px-2.5 py-1 hover:text-[#8b949e] hover:border-[#484f58] transition-colors shrink-0"
+        >
+          {open ? '숨기기' : '펼치기'}
+        </button>
       </div>
 
-      {/* 목록 */}
+      {/* Post list */}
       {open && (
-        <ol className="px-5 pb-3 space-y-2.5">
+        <ol className="px-5 pb-4 flex flex-col gap-0.5">
           {posts.map((post, idx) => (
-            <li key={post.slug} className="flex gap-3 text-sm">
-              <span className="text-gray-400 dark:text-gray-600 shrink-0 w-5 pt-px text-xs leading-relaxed">
-                {idx + 1}.
-              </span>
+            <li key={post.slug}>
               {post.slug === currentSlug ? (
-                <span className="text-[#7c3aed] dark:text-[#c084fc] font-semibold leading-relaxed">
-                  {post.title}
-                </span>
+                <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-[#7c3aed]/12">
+                  <span className="font-mono text-[11px] text-[#a78bfa] w-5 shrink-0">
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#a78bfa] shrink-0" />
+                  <span className="text-[13px] text-[#a78bfa] font-semibold leading-snug flex-1">
+                    {post.title}
+                    <span className="font-mono text-[10px] text-[#10b981] ml-2">← 현재</span>
+                  </span>
+                </div>
               ) : (
                 <Link
                   href={`/posts/${post.slug}`}
-                  className="text-gray-600 dark:text-gray-400 hover:text-[#7c3aed] dark:hover:text-gray-200 transition-colors leading-relaxed"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/4 transition-colors group"
                 >
-                  {post.title}
+                  <span className="font-mono text-[11px] text-[#484f58] w-5 shrink-0">
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#30363d] shrink-0 group-hover:bg-[#a78bfa] transition-colors" />
+                  <span className="text-[13px] text-[#8b949e] group-hover:text-[#e6edf3] transition-colors leading-snug flex-1">
+                    {post.title}
+                  </span>
                 </Link>
               )}
             </li>
@@ -60,41 +72,30 @@ export default function SeriesToc({ seriesName, posts, currentSlug }: Props) {
         </ol>
       )}
 
-      {/* 하단 바 */}
-      <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-[#2d2d44]">
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-        >
-          <svg
-            width="10" height="10" viewBox="0 0 10 10" fill="none"
-            className={`transition-transform duration-200 ${open ? '' : 'rotate-180'}`}
-          >
-            <path d="M1 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          {open ? '숨기기' : '펼치기'}
-        </button>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 dark:text-gray-600">{position}/{total}</span>
+      {/* Footer */}
+      <div className="flex items-center justify-between px-5 py-3 border-t border-[#21262d]">
+        <span className="font-mono text-[11px] text-[#484f58]">
+          {position} / {total}
+        </span>
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => prevPost && router.push(`/posts/${prevPost.slug}`)}
             disabled={!prevPost}
-            className="w-7 h-7 rounded-full border border-gray-200 dark:border-[#3d3d5a] flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-7 h-7 rounded-md border border-[#30363d] bg-[#161b22] flex items-center justify-center text-[#484f58] hover:text-[#a78bfa] hover:border-[#a78bfa] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             aria-label="이전 글"
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M6 2L3 5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6 2L3 5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
           <button
             onClick={() => nextPost && router.push(`/posts/${nextPost.slug}`)}
             disabled={!nextPost}
-            className="w-7 h-7 rounded-full border border-gray-200 dark:border-[#3d3d5a] flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-7 h-7 rounded-md border border-[#30363d] bg-[#161b22] flex items-center justify-center text-[#484f58] hover:text-[#a78bfa] hover:border-[#a78bfa] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             aria-label="다음 글"
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M4 2l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 2l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
