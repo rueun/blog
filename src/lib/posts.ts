@@ -1,24 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
-import { unified } from 'unified'
-import remarkParse from 'remark-parse'
-import remarkGfm from 'remark-gfm'
-import remarkRehype from 'remark-rehype'
-import rehypeStringify from 'rehype-stringify'
-import rehypePrettyCode from 'rehype-pretty-code'
-import rehypeSlug from 'rehype-slug'
 import readingTime from 'reading-time'
-import type { PostMeta, Post, Heading, CategoryTreeItem } from './types'
-
-function extractHeadings(html: string): Heading[] {
-  const matches = [...html.matchAll(/<h([1-3])[^>]*\sid="([^"]*)"[^>]*>(.*?)<\/h[1-3]>/gs)]
-  return matches.map((m) => ({
-    level: parseInt(m[1]),
-    id: m[2],
-    text: m[3].replace(/<[^>]+>/g, '').trim(),
-  }))
-}
+import type { PostMeta, Post, CategoryTreeItem } from './types'
 
 const postsDir = path.join(process.cwd(), 'posts')
 
@@ -26,18 +10,27 @@ function removeHugoShortcodes(content: string): string {
   return content.replace(/\{\{<\s*.*?\s*>\}\}/gs, '')
 }
 
+function findPostFile(slug: string): { filePath: string; isMdx: boolean } {
+  const mdxPath = path.join(postsDir, `${slug}.mdx`)
+  const mdPath = path.join(postsDir, `${slug}.md`)
+  if (fs.existsSync(mdxPath)) return { filePath: mdxPath, isMdx: true }
+  return { filePath: mdPath, isMdx: false }
+}
+
 export function getAllPostSlugs(): string[] {
   if (!fs.existsSync(postsDir)) return []
-  return fs
-    .readdirSync(postsDir)
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => f.replace('.md', ''))
+  const slugs = new Set<string>()
+  fs.readdirSync(postsDir)
+    .filter((f) => f.endsWith('.md') || f.endsWith('.mdx'))
+    .forEach((f) => slugs.add(f.replace(/\.mdx?$/, '')))
+  return Array.from(slugs)
 }
 
 export function getAllPostMetas(): PostMeta[] {
   return getAllPostSlugs()
     .map((slug) => {
-      const { data } = matter(fs.readFileSync(path.join(postsDir, `${slug}.md`), 'utf8'))
+      const { filePath } = findPostFile(slug)
+      const { data } = matter(fs.readFileSync(filePath, 'utf8'))
       return {
         slug,
         title: data.title ?? '',
@@ -53,25 +46,12 @@ export function getAllPostMetas(): PostMeta[] {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 }
 
-export async function getPost(slug: string): Promise<Post> {
-  const source = fs.readFileSync(path.join(postsDir, `${slug}.md`), 'utf8')
-  const { data, content } = matter(source)
+export function getPost(slug: string): Post {
+  const { filePath, isMdx } = findPostFile(slug)
+  const raw = fs.readFileSync(filePath, 'utf8')
+  const { data, content } = matter(raw)
   const clean = removeHugoShortcodes(content)
-
-  const file = await unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkRehype, { allowDangerousHtml: true })
-    .use(rehypeSlug)
-    .use(rehypePrettyCode, {
-      theme: 'dracula',
-      keepBackground: false,
-    })
-    .use(rehypeStringify, { allowDangerousHtml: true })
-    .process(clean)
-
-  const rt = readingTime(content)
-  const contentHtml = String(file)
+  const rt = readingTime(clean)
 
   return {
     slug,
@@ -83,9 +63,9 @@ export async function getPost(slug: string): Promise<Post> {
     tags: data.tags ?? [],
     categories: data.categories ?? [],
     cover: data.cover,
-    contentHtml,
+    source: clean,
+    isMdx,
     readingTime: rt.text,
-    headings: extractHeadings(contentHtml),
   }
 }
 

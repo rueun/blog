@@ -28,7 +28,7 @@ export interface Heading {
 }
 
 export interface Post extends PostMeta {
-  contentHtml: string
+  source: string
+  isMdx: boolean
   readingTime: string
-  headings: Heading[]
 }

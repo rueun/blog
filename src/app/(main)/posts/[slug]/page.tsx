@@ -1,11 +1,17 @@
 import { getAllPostSlugs, getPost, getAdjacentPosts, getSeriesPosts } from '@/lib/posts'
-import MdxContent from '@/components/MdxContent'
+import { compileMDX } from 'next-mdx-remote/rsc'
+import remarkGfm from 'remark-gfm'
+import rehypePrettyCode from 'rehype-pretty-code'
+import rehypeSlug from 'rehype-slug'
+import { visit } from 'unist-util-visit'
 import PostNav from '@/components/PostNav'
 import SeriesToc from '@/components/SeriesToc'
 import TableOfContents from '@/components/TableOfContents'
 import Link from 'next/link'
 import GiscusComments from '@/components/GiscusComments'
+import { mdxComponents } from '@/components/mdx'
 import type { Metadata } from 'next'
+import type { Heading } from '@/lib/types'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -15,7 +21,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const post = await getPost(slug)
+  const post = getPost(slug)
   return {
     title: post.title,
     description: post.description,
@@ -31,11 +37,53 @@ function getCategoryColor(category: string): string {
   return '#8b949e'
 }
 
+function createHeadingsExtractor(headings: Heading[]) {
+  return () => (tree: any) => {
+    visit(tree, 'element', (node: any) => {
+      const match = /^h([1-3])$/.exec(node.tagName)
+      if (!match || !node.properties?.id) return
+
+      function getText(nodes: any[]): string {
+        return nodes
+          .map((n: any) => {
+            if (n.type === 'text') return n.value
+            if (n.children) return getText(n.children)
+            return ''
+          })
+          .join('')
+      }
+
+      headings.push({
+        level: parseInt(match[1]),
+        id: String(node.properties.id),
+        text: getText(node.children ?? []).trim(),
+      })
+    })
+  }
+}
+
 export default async function PostPage({ params }: Props) {
   const { slug } = await params
-  const post = await getPost(slug)
+  const post = getPost(slug)
   const { prev, next } = getAdjacentPosts(slug)
   const seriesPosts = post.series ? getSeriesPosts(post.series) : []
+
+  const headings: Heading[] = []
+  const { content } = await compileMDX({
+    source: post.source,
+    components: mdxComponents,
+    options: {
+      mdxOptions: {
+        format: post.isMdx ? 'mdx' : 'md',
+        remarkPlugins: [remarkGfm],
+        rehypePlugins: [
+          rehypeSlug,
+          createHeadingsExtractor(headings),
+          [rehypePrettyCode, { theme: 'dracula', keepBackground: false }],
+        ],
+      },
+    },
+  })
 
   const formattedDate = post.date
     ? '@' + new Date(post.date).toISOString().split('T')[0]
@@ -53,7 +101,7 @@ export default async function PostPage({ params }: Props) {
           <Link href="/blog" className="hover:text-[#8b949e] transition-colors">
             blog
           </Link>
-          {categories.map((cat, i) => (
+          {categories.map((cat) => (
             <span key={cat} className="flex items-center gap-1.5">
               <span className="text-[#30363d]">/</span>
               <Link
@@ -114,7 +162,19 @@ export default async function PostPage({ params }: Props) {
         )}
 
         {/* Content */}
-        <MdxContent html={post.contentHtml} />
+        <div
+          className="prose prose-gray max-w-none
+            prose-headings:font-bold prose-headings:text-gray-900
+            prose-a:text-[#7c3aed] prose-a:no-underline hover:prose-a:underline
+            prose-strong:text-gray-900
+            prose-blockquote:border-l-[#cba6f7] prose-blockquote:text-gray-600
+            prose-table:text-sm
+            prose-img:rounded-xl
+            prose-pre:p-0 prose-pre:bg-transparent prose-pre:rounded-none prose-pre:m-0
+            [&_figure]:m-0"
+        >
+          {content}
+        </div>
 
         {/* Post Navigation */}
         <PostNav prev={prev} next={next} />
@@ -124,7 +184,7 @@ export default async function PostPage({ params }: Props) {
       </article>
 
       {/* TOC */}
-      <TableOfContents headings={post.headings} />
+      <TableOfContents headings={headings} />
     </div>
   )
 }
