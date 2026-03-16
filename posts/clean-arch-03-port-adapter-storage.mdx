@@ -1,0 +1,371 @@
+---
+title: "Port & Adapter 패턴으로 외부 스토리지 연동하기"
+date: 2025-09-22
+description: "파일 업로드/다운로드 설계에서 Presigned URL 방식을 선택한 이유와, FileStorage 인터페이스(Port)와 CephFileStorage(Adapter)로 기술 독립성을 확보한 과정을 정리합니다."
+series: "클린 아키텍처로 실제 서비스 만들기"
+categories:
+  - Development
+  - Architecture
+tags:
+  - Clean Architecture
+  - Port and Adapter
+  - Java
+  - Spring Boot
+  - Object Storage
+  - Presigned URL
+---
+
+# Port & Adapter 패턴으로 외부 스토리지 연동하기
+
+파일을 다루는 시스템을 설계할 때 빠지기 쉬운 함정이 있다. 클라이언트가 파일을 서버에 업로드하고, 서버가 그 파일을 다시 스토리지에 저장하는 구조다. 겉보기에는 자연스러워 보이지만, 이 방식은 서버가 불필요한 파일 중계 역할을 맡게 되어 병목 지점이 된다.
+
+이 글에서는 문서 분석 시스템에서 파일 업로드/다운로드를 어떻게 설계했는지, 그리고 **Port & Adapter 패턴**으로 스토리지 구현체를 도메인과 분리한 과정을 정리한다.
+
+## 서버가 파일을 중계하는 방식의 문제점
+
+가장 흔한 파일 업로드 구현은 다음과 같다.
+
+```
+클라이언트 → (파일 전송) → 서버 → (파일 저장) → 스토리지
+```
+
+이 방식의 문제는 명확하다.
+
+**서버 메모리와 CPU를 낭비한다.** 수십 MB짜리 PDF 파일을 서버가 메모리에 올려서 스토리지로 전달한다. 동시 업로드가 많아지면 서버 메모리 압박이 심해진다.
+
+**네트워크 병목이 생긴다.** 클라이언트 → 서버, 서버 → 스토리지로 데이터가 두 번 전송된다. 동일한 데이터가 네트워크를 두 번 타는 셈이다.
+
+**서버의 책임이 아닌 일을 한다.** 이 시스템의 서버는 분석 파이프라인을 조율하는 것이 핵심 역할이다. 파일 스트리밍은 부가적인 역할이고, 이 때문에 서버의 확장성이 제약된다.
+
+## Presigned URL 방식 선택
+
+이 문제를 해결하기 위해 **Presigned URL** 방식을 선택했다.
+
+```
+클라이언트 → (업로드 URL 요청) → 서버
+서버 → (Presigned URL 발급) → 클라이언트
+클라이언트 → (파일 직접 업로드) → 스토리지
+```
+
+서버는 파일 자체를 처리하지 않는다. 스토리지에 특정 파일 키로 업로드할 수 있는 임시 서명된 URL만 발급해준다. 실제 파일 전송은 클라이언트와 스토리지 사이에서 직접 이루어진다.
+
+이 방식의 이점은 구체적이다.
+
+- **서버 부하 제거**: 서버가 파일 바이트를 처리하지 않아 메모리, CPU, 네트워크 사용량이 급감한다.
+- **전송 속도 향상**: 클라이언트가 스토리지에 직접 연결하므로 중간 홉이 사라진다.
+- **수평 확장 용이**: 파일 처리 부하가 없으므로 서버 인스턴스를 늘릴 때 파일 처리 용량을 고려하지 않아도 된다.
+- **보안 통제**: 각 URL은 지정된 파일 키와 만료 시간이 서명에 포함되어 있어 다른 파일에 접근하거나 만료 후 사용하는 것이 불가능하다.
+
+<Callout type="info" title="Presigned URL 보안 모델">
+Presigned URL에는 파일 키, 버킷, HTTP 메서드(PUT/GET), 만료 시각, 인증 정보의 서명이 포함된다. 스토리지 서버는 이 서명을 검증해 요청이 유효한지 확인한다. 만료 시간 내에 지정된 키로만 작업이 허용되므로, 다른 파일에 대한 무단 접근이 원천 차단된다.
+</Callout>
+
+## 왜 AWS S3가 아닌 Ceph인가
+
+스토리지 솔루션 선택에서 AWS S3와 Ceph 중 어느 것을 사용할지 고민이 있었다. 결론은 **Ceph S3 호환 스토리지**였다.
+
+의사결정의 핵심은 **인프라 운영 자율성**이었다. 외부 클라우드 서비스에 의존하면 비용 예측이 어렵고, 데이터 규정 준수 요건을 충족시키기 위한 제약이 생길 수 있다. Ceph는 온프레미스 또는 프라이빗 클라우드 환경에서 운영할 수 있는 오픈소스 분산 스토리지 시스템이다.
+
+결정적으로, Ceph는 **AWS S3 호환 API**를 제공한다. 즉, AWS SDK(`software.amazon.awssdk:s3`)를 그대로 사용하면서 엔드포인트만 Ceph 클러스터로 지정하면 된다.
+
+이 점이 Port & Adapter 패턴 적용의 완벽한 배경이 되었다. API가 호환되는 만큼, 나중에 AWS S3로 전환하더라도 어댑터 코드만 교체하면 된다.
+
+<Callout type="tip" title="기술 선택의 트레이드오프">
+Ceph 선택의 트레이드오프도 분명히 존재한다. 운영 복잡성이 높고, 클러스터 구축과 유지보수에 전문 지식이 필요하다. AWS S3는 관리 부담이 없는 대신 비용 구조와 벤더 의존성이 생긴다. 이 시스템은 운영 자율성과 비용 통제를 우선했기 때문에 Ceph를 선택했지만, 팀 역량과 비용 구조에 따라 선택은 달라질 수 있다.
+</Callout>
+
+## Port와 Adapter 분리
+
+이제 핵심 설계로 들어가자. 파일 스토리지 연동을 도메인에서 독립적으로 만들기 위해 **Port(인터페이스)**와 **Adapter(구현체)**를 분리했다.
+
+### Port: FileStorage 인터페이스
+
+`core/infra/storage/port` 모듈에 위치한다. 이 모듈은 AWS SDK나 어떤 외부 라이브러리도 의존하지 않는다.
+
+```java
+public interface FileStorage {
+    void uploadFile(String fileKey, byte[] bytes);
+    FileResponse downloadFileStream(String fileKey);
+    String generateUploadUrl(String fileKey, long expirationSeconds);
+    String generateDownloadUrl(String fileKey, long expirationSeconds);
+}
+```
+
+인터페이스의 메서드 이름이 도메인 언어로 표현되어 있음을 주목하자. `generateUploadUrl()`은 "업로드 URL을 생성한다"는 행위를 표현한다. "Presigned URL을 발급한다"거나 "S3 서명을 생성한다"와 같은 기술 용어가 없다.
+
+이 인터페이스에 의존하는 서비스 코드는 내부가 Ceph인지 S3인지 알 필요가 없다.
+
+### Adapter: CephFileStorage 구현체
+
+`core/infra/storage/adapter-ceph` 모듈에 위치한다. AWS SDK가 이 모듈에만 격리된다.
+
+```java
+@RequiredArgsConstructor
+public class CephFileStorage implements FileStorage {
+    private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
+    private final String bucketName;
+
+    @Override
+    public String generateUploadUrl(String fileKey, long expirationSeconds) {
+        final PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofSeconds(expirationSeconds))
+                .putObjectRequest(b -> b
+                        .bucket(bucketName)
+                        .key(fileKey)
+                        .contentType(FileUtils.getMediaType(fileKey)))
+                .build();
+        return s3Presigner.presignPutObject(presignRequest).url().toString();
+    }
+
+    @Override
+    public String generateDownloadUrl(String fileKey, long expirationSeconds) {
+        final GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofSeconds(expirationSeconds))
+                .getObjectRequest(b -> b
+                        .bucket(bucketName)
+                        .key(fileKey))
+                .build();
+        return s3Presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    @Override
+    public FileResponse downloadFileStream(final String fileKey) {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileKey)
+                    .build();
+            final ResponseInputStream<GetObjectResponse> responseInputStream =
+                    s3Client.getObject(getObjectRequest);
+            final GetObjectResponse response = responseInputStream.response();
+            final String contentType = response.contentType();
+            final long contentLength = response.contentLength();
+            return new FileResponse(responseInputStream, contentType, fileKey, contentLength);
+        } catch (NoSuchKeyException e) {
+            throw new CoreException(CommonErrorType.NOT_FOUND,
+                "File not found: " + fileKey);
+        }
+    }
+
+    @Override
+    public void uploadFile(String fileKey, byte[] bytes) {
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(fileKey)
+                .contentType(FileUtils.getMediaType(fileKey))
+                .build();
+        s3Client.putObject(putObjectRequest, RequestBody.fromBytes(bytes));
+    }
+}
+```
+
+구현체에서는 S3Client, S3Presigner 같은 AWS SDK 클래스가 등장한다. 이 기술적 세부사항이 `adapter-ceph` 모듈 밖으로 노출되지 않는다.
+
+## 모듈 의존성 구조
+
+```
+domain 모듈
+  ↑ (의존)
+storage/port 모듈       ← FileStorage 인터페이스 정의
+  ↑ (의존)
+storage/adapter-ceph 모듈  ← CephFileStorage 구현, AWS SDK 의존
+  ↑ (의존)
+application/visual 모듈    ← Bean 등록 및 주입
+```
+
+`domain`은 `storage/port`에 의존할 수 있지만, `storage/adapter-ceph`는 모른다. `application` 모듈의 Spring 설정에서 `CephFileStorage`를 `FileStorage` 타입의 Bean으로 등록하면, 의존성 역전이 완성된다.
+
+```java
+@Configuration
+public class StorageConfig {
+
+    @Bean
+    public FileStorage fileStorage(S3Client s3Client,
+                                   S3Presigner s3Presigner,
+                                   @Value("${storage.bucket-name}") String bucketName) {
+        return new CephFileStorage(s3Client, s3Presigner, bucketName);
+    }
+}
+```
+
+서비스 코드는 `FileStorage` 인터페이스만 주입받는다.
+
+```java
+@RequiredArgsConstructor
+@Service
+public class DocumentUploadService {
+    private final FileStorage fileStorage;
+    private final DocumentRepository documentRepository;
+
+    public UploadUrlResponse generateUploadUrl(GenerateUploadUrlCommand command) {
+        String fileKey = FileKeyGenerator.generate(command.domain(), command.fileName());
+        String uploadUrl = fileStorage.generateUploadUrl(fileKey, 300L); // 5분 유효
+        return new UploadUrlResponse(fileKey, uploadUrl);
+    }
+}
+```
+
+서비스 코드 어디에도 Ceph, S3, `PutObjectPresignRequest` 같은 기술 용어가 없다.
+
+## Presigned URL 흐름 다이어그램
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.5rem 0'}}>Presigned URL — 파일 업로드 / 다운로드 흐름</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0, marginBottom: '0.75rem'}}>
+    {[
+      {label: '클라이언트', color: '#3b82f6', bg: '#0f1729'},
+      {label: '서버 (visual)', color: '#22c55e', bg: '#0f2318'},
+      {label: '스토리지 (Ceph)', color: '#f97316', bg: '#1c1208'},
+    ].map(({label, color, bg}) => (
+      <div key={label} style={{background: bg, border: `1px solid ${color}`, padding: '0.4rem', textAlign: 'center'}}>
+        <span style={{color: color, fontWeight: 700, fontSize: '0.75rem'}}>{label}</span>
+      </div>
+    ))}
+  </div>
+
+  <div style={{background: '#0c0e14', border: '1px solid #1f2937', borderRadius: '4px', padding: '0.4rem 0.75rem', marginBottom: '0.5rem', textAlign: 'center'}}>
+    <span style={{color: '#4b5563', fontSize: '0.65rem', letterSpacing: '0.05em'}}>── 업로드 흐름 ──</span>
+  </div>
+
+  {[
+    {from: 0, to: 1, dir: '→', label: 'POST /documents/upload-url', sub: '{fileName, domain}', color: '#3b82f6'},
+    {from: 1, to: 1, dir: '↺', label: 'fileKey 생성', sub: 'UUID 기반 고유 키', color: '#22c55e'},
+    {from: 1, to: 2, dir: '→', label: 'Presigned PUT URL 요청', sub: 'fileKey, 만료시간=5분', color: '#22c55e'},
+    {from: 2, to: 1, dir: '←', label: '서명된 업로드 URL 반환', sub: '', color: '#f97316'},
+    {from: 1, to: 0, dir: '←', label: '{fileKey, uploadUrl}', sub: '', color: '#22c55e'},
+    {from: 0, to: 2, dir: '→→', label: 'PUT {uploadUrl}', sub: '파일 바이트 직접 전송 — 서버 우회!', color: '#eab308'},
+    {from: 2, to: 0, dir: '←←', label: '200 OK', sub: '', color: '#f97316'},
+    {from: 0, to: 1, dir: '→', label: 'POST /documents', sub: '{fileKey, title, ...}', color: '#3b82f6'},
+    {from: 1, to: 0, dir: '←', label: '{documentId, documentKey}', sub: '', color: '#22c55e'},
+  ].map((step, i) => (
+    <div key={i} style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0, marginBottom: '2px', alignItems: 'center', minHeight: '36px'}}>
+      <div style={{padding: '0.2rem 0.3rem', borderLeft: step.from === 0 ? `2px solid #3b82f666` : 'none', borderRight: 'none'}}></div>
+      <div style={{padding: '0.2rem 0.3rem', textAlign: 'center', borderLeft: step.from === 1 ? `2px solid #22c55e66` : 'none'}}>
+        {(step.from === 0 && step.to === 1) || (step.from === 1 && step.to === 0) || step.from === 1 ? (
+          <div style={{background: '#161b22', borderRadius: '4px', padding: '0.2rem 0.4rem'}}>
+            <div style={{color: step.color, fontSize: '0.65rem', fontWeight: 600}}>{step.dir} {step.label}</div>
+            {step.sub && <div style={{color: '#4b5563', fontSize: '0.6rem'}}>{step.sub}</div>}
+          </div>
+        ) : null}
+        {step.dir === '→→' || step.dir === '←←' ? (
+          <div style={{background: '#1a1508', border: `1px solid #ca8a04`, borderRadius: '4px', padding: '0.2rem 0.4rem'}}>
+            <div style={{color: '#fbbf24', fontSize: '0.65rem', fontWeight: 700}}>{step.dir === '→→' ? '직접 전송 →' : '← 응답'} {step.label}</div>
+            {step.sub && <div style={{color: '#92400e', fontSize: '0.6rem'}}>{step.sub}</div>}
+          </div>
+        ) : null}
+      </div>
+      <div style={{padding: '0.2rem 0.3rem', borderLeft: step.from === 2 || step.to === 2 ? `2px solid #f9731666` : 'none'}}></div>
+    </div>
+  ))}
+
+  <div style={{background: '#0c0e14', border: '1px solid #1f2937', borderRadius: '4px', padding: '0.4rem 0.75rem', margin: '0.75rem 0 0.5rem', textAlign: 'center'}}>
+    <span style={{color: '#4b5563', fontSize: '0.65rem', letterSpacing: '0.05em'}}>── 다운로드 흐름 ──</span>
+  </div>
+
+  {[
+    {label: 'GET /documents/{documentKey}/download-url', sub: '', color: '#3b82f6', note: '클라이언트 → 서버'},
+    {label: 'Presigned GET URL 요청', sub: 'fileKey, 만료시간=1시간', color: '#22c55e', note: '서버 → 스토리지'},
+    {label: '서명된 다운로드 URL 반환', sub: '', color: '#f97316', note: '스토리지 → 서버'},
+    {label: '{downloadUrl}', sub: '', color: '#22c55e', note: '서버 → 클라이언트'},
+    {label: 'GET {downloadUrl} — 파일 직접 수신', sub: '서버 우회!', color: '#eab308', note: '클라이언트 → 스토리지'},
+  ].map((step, i) => (
+    <div key={i} style={{display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '2px'}}>
+      <span style={{color: '#374151', fontSize: '0.6rem', minWidth: '130px', textAlign: 'right'}}>{step.note}</span>
+      <div style={{flex: 1, background: step.color === '#eab308' ? '#1a1508' : '#161b22', border: `1px solid ${step.color}33`, borderRadius: '4px', padding: '0.2rem 0.5rem'}}>
+        <span style={{color: step.color, fontSize: '0.65rem', fontWeight: 600}}>{step.label}</span>
+        {step.sub && <span style={{color: '#4b5563', fontSize: '0.6rem', marginLeft: '0.3rem'}}>· {step.sub}</span>}
+      </div>
+    </div>
+  ))}
+</div>
+
+서버는 URL만 발급하고 실제 파일 데이터는 클라이언트와 스토리지 사이에서 직접 흐른다.
+
+## 인터페이스 추상화로 얻은 것들
+
+### 테스트 용이성
+
+`FileStorage`가 인터페이스이기 때문에 단위 테스트에서 Mock으로 쉽게 대체할 수 있다.
+
+```java
+@ExtendWith(MockitoExtension.class)
+class DocumentUploadServiceTest {
+
+    @Mock
+    private FileStorage fileStorage;
+
+    @Mock
+    private DocumentRepository documentRepository;
+
+    @InjectMocks
+    private DocumentUploadService documentUploadService;
+
+    @Test
+    void 업로드_URL_생성_시_올바른_fileKey가_반환된다() {
+        // given
+        given(fileStorage.generateUploadUrl(anyString(), anyLong()))
+            .willReturn("https://storage.example.com/signed-url");
+
+        var command = new GenerateUploadUrlCommand("domain", "test.pdf");
+
+        // when
+        var result = documentUploadService.generateUploadUrl(command);
+
+        // then
+        assertThat(result.uploadUrl()).isEqualTo("https://storage.example.com/signed-url");
+        verify(fileStorage).generateUploadUrl(anyString(), eq(300L));
+    }
+}
+```
+
+실제 Ceph 클러스터 없이도 서비스 로직을 완전히 테스트할 수 있다.
+
+### 기술 교체 유연성
+
+만약 Ceph에서 AWS S3로 전환하거나, 개발 환경에서는 로컬 MinIO를 사용하고 싶다면 어떻게 하면 될까?
+
+```java
+// 개발 환경용 MinIO 어댑터
+public class MinioFileStorage implements FileStorage {
+    // MinIO 클라이언트로 동일한 인터페이스 구현
+}
+
+// Spring 프로파일로 환경별 Bean 선택
+@Profile("local")
+@Bean
+public FileStorage fileStorage(MinioClient minioClient, ...) {
+    return new MinioFileStorage(minioClient, bucketName);
+}
+
+@Profile("!local")
+@Bean
+public FileStorage fileStorage(S3Client s3Client, ...) {
+    return new CephFileStorage(s3Client, s3Presigner, bucketName);
+}
+```
+
+서비스 코드, 도메인 코드는 한 줄도 바꾸지 않아도 된다.
+
+<Callout type="tip" title="Port & Adapter 적용 기준">
+모든 외부 의존성을 인터페이스로 추상화할 필요는 없다. 교체 가능성이 있거나, 테스트에서 Mock이 필요하거나, 두 개 이상의 구현체가 공존해야 하는 경우에 Port & Adapter 패턴을 적용한다. 그 외의 경우에 무조건 인터페이스를 만드는 것은 과설계다.
+</Callout>
+
+## 실제 운영에서의 주의사항
+
+**Presigned URL 만료 시간 설정.** 업로드 URL은 5분, 다운로드 URL은 1시간으로 설정했다. 업로드는 즉시 사용되는 경우가 대부분이므로 짧게 유지하고, 다운로드는 사용자가 링크를 공유하거나 잠시 후 사용할 수 있어 여유 있게 설정했다. 보안 요구사항에 따라 이 값은 조정이 필요하다.
+
+**fileKey 설계.** 파일 키를 예측 불가능하게 만드는 것이 중요하다. 순차적인 숫자 ID나 파일명 그대로를 키로 사용하면 다른 파일의 URL을 추측할 수 있다. UUID 기반의 고유 키를 사용해 열거 공격(enumeration attack)을 방지한다.
+
+**에러 처리.** `NoSuchKeyException` 등 스토리지 특화 예외를 어댑터에서 도메인 예외로 변환한다. `CoreException(CommonErrorType.NOT_FOUND, ...)`처럼 변환함으로써, 서비스나 도메인이 AWS SDK 예외 타입을 알 필요가 없다.
+
+## 정리
+
+파일 스토리지 연동에서 얻은 핵심 교훈은 두 가지다.
+
+**첫째, 서버가 해야 할 일과 하지 말아야 할 일을 명확히 구분하자.** 서버는 인증, 인가, 비즈니스 로직 조율에 집중하고, 파일 스트리밍처럼 서버의 핵심 역할이 아닌 것은 Presigned URL로 외부에 위임하는 것이 맞다.
+
+**둘째, 기술 선택을 도메인에서 격리하면 나중에 선택을 바꿀 수 있다.** Port & Adapter 패턴은 현재의 기술 선택에 묶이지 않을 자유를 준다. Ceph를 선택한 이유가 사라지더라도, 어댑터 하나를 교체하면 된다.
+
+다음 편에서는 문서 업로드 이후 분석 파이프라인이 어떻게 비동기로 실행되는지를 다룬다. **Redis Streams**를 메시지 브로커로 선택한 이유와, `@TransactionalEventListener`가 왜 중요한지, Consumer Group으로 at-least-once 처리를 보장하는 구조를 살펴볼 것이다.

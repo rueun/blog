@@ -1,0 +1,262 @@
+---
+title: "프로젝트 회고: 잘한 설계, 아쉬운 설계"
+date: 2025-11-05
+description: "클린 아키텍처로 문서 분석 시스템을 구축하면서 내린 설계 결정들을 돌아봅니다. 잘한 것과 아쉬운 것을 솔직하게, 그리고 다시 만든다면 무엇을 바꿀지 이야기합니다."
+series: "클린 아키텍처로 실제 서비스 만들기"
+categories:
+  - Development
+  - Architecture
+tags:
+  - Clean Architecture
+  - Spring Boot
+  - Java
+  - Retrospective
+---
+
+## 이 시리즈를 마치며
+
+8편에 걸쳐 문서 분석 시스템을 구축하면서 적용한 기술과 설계 결정을 다뤘다. 간략히 요약하면 다음과 같다.
+
+| 편 | 주제 | 핵심 결정 |
+|----|------|----------|
+| 1편 | 멀티 모듈 구조 | 도메인 중심 모듈 분리 |
+| 2편 | Enum 상태 머신 | 잘못된 상태 전이를 컴파일/런타임에서 차단 |
+| 3편 | Port & Adapter | 스토리지 교체 유연성 확보 |
+| 4편 | Transactional Event Listener | 이벤트 발행 안전성 확보 |
+| 5편 | 스트리밍 API | Flux 기반 점진적 처리, 메모리 효율 |
+| 6편 | Dead Letter Queue | 운영 가시성과 장애 대비 설계 |
+| 7편 | QueryDSL 동적 쿼리 | 타입 안전한 복잡 검색 |
+
+이 모든 결정이 완벽했는가? 솔직하게 말하면 그렇지 않다. 잘된 것도 있고, 지금 보면 부끄러운 것도 있다.
+
+---
+
+## 잘한 설계 결정들
+
+### 1. Enum 기반 상태 머신 — 잘못된 상태 전이를 코드가 막는다
+
+```java
+public enum DocumentStatus {
+    PENDING {
+        @Override
+        public DocumentStatus startAnalysis() { return IN_PROGRESS; }
+    },
+    IN_PROGRESS {
+        @Override
+        public DocumentStatus complete() { return COMPLETED; }
+
+        @Override
+        public DocumentStatus fail() { return FAILED; }
+    },
+    COMPLETED, FAILED;
+
+    public DocumentStatus startAnalysis() {
+        throw new InvalidStatusTransitionException(this, "startAnalysis");
+    }
+    public DocumentStatus complete() {
+        throw new InvalidStatusTransitionException(this, "complete");
+    }
+    public DocumentStatus fail() {
+        throw new InvalidStatusTransitionException(this, "fail");
+    }
+}
+```
+
+이 설계의 가치는 **"COMPLETED 상태에서 startAnalysis()를 호출하면 컴파일 에러가 나지는 않지만, 런타임에서 즉시 명확한 예외로 차단된다"**는 점이다.
+
+코드 리뷰 중에 `COMPLETED` 상태의 문서에 재분석 요청이 들어오는 케이스를 테스트로 작성했을 때, 이 구조 덕분에 별도의 if-else 없이 예외가 발생했다. 상태 관련 버그를 사전에 차단한 사례가 실제로 있었다.
+
+<Callout type="tip" title="Enum 상태 머신이 빛나는 순간">
+신규 개발자가 코드를 수정할 때, 잘못된 상태 전이를 시도하면 즉시 예외가 발생한다. "왜 안 되지?"를 디버깅하는 대신, 예외 메시지가 "이 상태에서는 이 전이가 불가능합니다"를 명확히 알려준다. 문서가 없어도 코드가 규칙을 설명한다.
+</Callout>
+
+### 2. Port & Adapter — 스토리지를 두 번 바꿨다
+
+초기에는 로컬 파일 시스템에 문서를 저장하는 `LocalFileStorageAdapter`로 시작했다. 개발 단계에서 빠르게 구현하기 위해서였다.
+
+두 번째 단계에서 S3로 교체했다. `StoragePort` 인터페이스는 그대로 두고 `S3StorageAdapter`만 새로 작성하면 됐다. 서비스 레이어 코드는 한 줄도 바꾸지 않았다.
+
+```java
+// 인터페이스는 변하지 않는다
+public interface DocumentStoragePort {
+    String store(DocumentFile file);
+    DocumentFile retrieve(String storageKey);
+    void delete(String storageKey);
+}
+
+// 구현체만 교체
+@Profile("local")
+public class LocalFileStorageAdapter implements DocumentStoragePort { ... }
+
+@Profile("prod")
+public class S3StorageAdapter implements DocumentStoragePort { ... }
+```
+
+이론으로 배운 Port & Adapter의 "기술 변경 시 도메인 영향 없음"을 실제로 경험했다. 교체 작업이 반나절만에 끝났고, QA에서 문제가 없었다.
+
+### 3. Transactional Event Listener — 이벤트가 커밋 후에 발행된다
+
+```java
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void handleDocumentCreated(DocumentCreatedEvent event) {
+    analysisRequestQueue.enqueue(event.documentId());
+}
+```
+
+`@EventListener` 대신 `@TransactionalEventListener(phase = AFTER_COMMIT)`를 선택한 이유는 간단하다. 트랜잭션이 롤백될 수 있기 때문이다.
+
+문서 저장 트랜잭션이 실패하면 DB에 문서가 없는데 분석 큐에는 요청이 들어가는 불일치 상태가 생길 수 있다. `AFTER_COMMIT`을 쓰면 커밋이 완료된 후에만 이벤트가 발행되므로 이 문제를 원천 차단한다. 이것은 코드 몇 글자 차이지만 데이터 정합성에 직결되는 결정이다.
+
+### 4. Dead Letter Queue — 장애가 투명하게 드러난다
+
+6편에서 자세히 다뤘지만, 회고 관점에서 다시 언급할 만한 가치가 있다. DLQ를 도입한 이후 "외부 AI API가 특정 문서 유형에서 반복적으로 실패한다"는 패턴을 발견했다. DLQ 알림이 없었다면 한동안 몰랐을 문제였다.
+
+운영 가시성은 기능 구현만큼 중요하다는 것을 이 경험이 가르쳐줬다.
+
+---
+
+## 아쉬운 설계 결정들 (솔직하게)
+
+### 1. 도메인 객체 불변성이 완전하지 않다
+
+CLAUDE.md에도 명시되어 있듯, 도메인 객체는 `final` 필드와 `toBuilder()` 패턴으로 불변성을 보장해야 한다. 하지만 이 프로젝트에서 일부 도메인 객체는 JPA와의 호환성 문제로 타협을 했다.
+
+```java
+// 이렇게 해야 하지만...
+@Builder(access = AccessLevel.PRIVATE, toBuilder = true)
+public final class Document {
+    private final String documentId;
+    private final DocumentStatus status;
+    // ...
+}
+
+// 실제로는 JPA 때문에 이렇게 됐다
+@Entity
+@Table(name = "documents")
+public class Document extends SoftDeleteBaseEntity {
+    @Id
+    private String documentId;
+
+    @Enumerated(EnumType.STRING)
+    private DocumentStatus status;  // final이 아님
+
+    protected Document() {}  // JPA 기본 생성자 필요
+}
+```
+
+JPA `@Entity`는 기본 생성자와 mutable 필드를 요구하므로, 도메인 객체를 그대로 엔티티로 쓰는 구조에서는 완전한 불변성이 어렵다. 올바른 해결책은 **도메인 객체와 JPA 엔티티를 분리**하는 것이다.
+
+```
+Document (도메인 객체, 불변) ↔ DocumentEntity (JPA 엔티티, mutable)
+```
+
+분리하면 매핑 코드가 추가되지만 각 계층의 책임이 명확해진다. 시간 압박으로 이 분리를 하지 못한 것이 가장 큰 아쉬움이다.
+
+<Callout type="warning" title="JPA 엔티티와 도메인 객체의 공존이 낳는 문제">
+- 도메인 객체에 JPA 어노테이션이 붙어 인프라 의존성이 생긴다
+- 불변성 보장이 어려워 예상치 못한 상태 변경이 발생할 수 있다
+- 도메인 로직 테스트 시 JPA 컨텍스트가 필요해진다
+</Callout>
+
+### 2. 재시도 로직이 없어 Dead Letter에만 의존한다
+
+6편에서 언급했지만, 현재 DLQ는 알림까지만이고 재처리는 수동이다. 이것은 단기적으로는 괜찮지만, 서비스 규모가 커지면 운영 부담이 된다.
+
+외부 AI API의 일시적 장애(503, 타임아웃)는 재시도하면 성공하는 경우가 많다. 이런 transient error에 대해 자동 재시도가 없다는 것은 설계 결함이다.
+
+```java
+// 이것만 추가해도 많이 달라진다
+@Retryable(
+    retryFor = {CoreException.class},
+    maxAttempts = 3,
+    backoff = @Backoff(delay = 1000, multiplier = 2)  // 1초, 2초, 4초
+)
+public AnalysisResult analyze(Document document) {
+    return aiApiClient.streamAnalysis(...).blockLast();
+}
+
+@Recover
+public AnalysisResult recover(CoreException e, Document document) {
+    deadLetterSender.send(DeadLetter.of("analysis", "ai-analyze",
+            e.getMessage(), document.getDocumentId()));
+    throw new AnalysisFailedException(document.getDocumentId(), e);
+}
+```
+
+`Spring Retry`의 `@Retryable`과 `@Recover`를 조합하면 재시도 후 최종 실패 시에만 DLQ로 보내는 구조를 만들 수 있다. 이 구조였다면 일시적 장애로 인한 DLQ 알림 빈도가 크게 줄었을 것이다.
+
+### 3. 테스트 커버리지가 충분하지 않다
+
+가장 솔직하게 인정해야 할 부분이다. 도메인 로직과 서비스 레이어의 단위 테스트는 어느 정도 있지만, 다음이 부족하다.
+
+- **통합 테스트**: 실제 DB와 연동하는 Repository 테스트가 부족하다
+- **계약 테스트**: 외부 API 클라이언트의 응답 형식 변경을 감지하는 테스트가 없다
+- **경계값 테스트**: 상태 전이의 모든 불가능한 경우를 테스트하지 않았다
+
+특히 QueryDSL 동적 쿼리는 조건 조합이 많기 때문에 `@DataJpaTest`로 각 조건 조합을 테스트하는 것이 필요했다. 이 부분의 버그는 QA에서야 발견됐다.
+
+---
+
+## 지금 다시 만든다면 바꿀 것들
+
+<Steps>
+<Step title="도메인 객체와 JPA 엔티티 분리">
+`Document` 도메인 객체와 `DocumentEntity` JPA 엔티티를 완전히 분리한다. `DocumentRepository` 구현체에서 매핑을 담당하고, 도메인 계층은 JPA를 전혀 모른다. 초기 비용이 들지만 장기적인 유지보수성이 크게 향상된다.
+</Step>
+<Step title="Spring Retry 적용">
+외부 API 호출에 `@Retryable`을 적용해서 일시적 장애를 자동으로 처리한다. DLQ는 재시도 후에도 실패한 경우의 최후 수단으로만 사용한다.
+</Step>
+<Step title="테스트 피라미드 구축">
+단위 테스트 → 통합 테스트 → E2E 테스트의 피라미드를 처음부터 설계에 포함한다. 특히 Repository 레이어는 `@DataJpaTest`로, API 클라이언트는 WireMock으로 테스트한다.
+</Step>
+<Step title="이벤트 소싱 고려">
+문서 상태 변경 이력을 이벤트로 저장하는 이벤트 소싱을 고려한다. 현재는 최신 상태만 DB에 저장하는데, 이벤트 이력이 있으면 디버깅과 감사가 훨씬 쉬워진다.
+</Step>
+</Steps>
+
+---
+
+## 이 프로젝트가 나에게 준 것
+
+기술적인 것 외에 이 프로젝트에서 배운 가장 중요한 것은 **트레이드오프를 의식적으로 선택하는 습관**이었다.
+
+처음에는 "클린 아키텍처를 적용하면 무조건 좋다"고 생각했다. 하지만 실제로 작업하다 보면 모든 원칙을 동시에 100% 지키는 것은 현실적으로 불가능하다는 것을 알게 됐다.
+
+- JPA 편의성 vs 도메인 객체 불변성
+- 개발 속도 vs 테스트 커버리지
+- 코드 단순성 vs 장애 대비 설계
+- 추상화의 유연성 vs 구체적인 최적화
+
+이 모든 것이 트레이드오프다. 중요한 것은 어떤 선택을 했는지가 아니라, **왜 그 선택을 했는지 설명할 수 있는가**다.
+
+<Callout type="info" title="설계 결정을 기록하는 ADR(Architecture Decision Record)">
+이 프로젝트를 진행하면서 아쉬웠던 점 중 하나는 설계 결정의 이유를 기록하지 않았다는 것이다. 6개월 후에 "왜 이렇게 했지?"라는 질문에 답하려면 기억에만 의존해야 한다. 다음 프로젝트에서는 중요한 아키텍처 결정마다 간단한 ADR 문서를 작성할 것이다.
+
+ADR 형식:
+- **Status**: Accepted / Deprecated / Superseded
+- **Context**: 어떤 상황에서 이 결정이 필요했나
+- **Decision**: 무엇을 선택했나
+- **Consequences**: 이 결정의 결과(긍정/부정)
+</Callout>
+
+---
+
+## 마무리: 클린 아키텍처는 정답이 아닌 트레이드오프다
+
+Robert C. Martin의 클린 아키텍처를 처음 읽었을 때는 "이렇게 하면 모든 문제가 해결된다"는 느낌을 받았다. 하지만 실제 프로젝트에 적용해보면 클린 아키텍처도 하나의 도구일 뿐이라는 것을 알게 된다.
+
+클린 아키텍처가 주는 것:
+- 관심사 분리로 인한 변경의 용이성
+- 테스트 가능성
+- 기술 선택의 유연성
+
+클린 아키텍처가 요구하는 것:
+- 초기 설계 비용
+- 계층 간 매핑 코드
+- 팀 전체의 이해와 합의
+
+모든 프로젝트에 클린 아키텍처가 맞는 것은 아니다. 빠른 프로토타이핑이 필요한 토이 프로젝트에 6계층 아키텍처를 적용하는 것은 과설계다. 반대로, 수년간 운영되고 팀원이 여러 명인 서비스에 계층 없이 코드를 작성하면 결국 유지보수 지옥이 된다.
+
+이 시리즈에서 소개한 설계 결정들이 모두 정답은 아니다. 하지만 각 결정 뒤에 있는 **"왜"**를 이해하고, 자신의 프로젝트 맥락에 맞게 적용하거나 변형하는 것이 진짜 실력이라고 생각한다.
+
+긴 시리즈를 읽어주셔서 감사합니다.

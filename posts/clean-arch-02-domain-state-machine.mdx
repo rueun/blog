@@ -1,0 +1,450 @@
+---
+title: "상태 머신을 도메인 객체로 표현하는 방법"
+date: 2025-09-12
+description: "AnalysisStatus와 AnalysisStep Enum으로 분석 파이프라인의 상태 전이 규칙을 캡슐화한 설계를 소개합니다. 정보전문가 패턴과 상태 머신을 결합해 잘못된 상태 전이를 도메인 수준에서 차단하는 방법을 다룹니다."
+series: "클린 아키텍처로 실제 서비스 만들기"
+categories:
+  - Development
+  - Architecture
+tags:
+  - Clean Architecture
+  - Domain Driven Design
+  - State Machine
+  - Java
+  - Spring Boot
+---
+
+# 상태 머신을 도메인 객체로 표현하는 방법
+
+분석 파이프라인이 있는 시스템을 설계할 때 가장 까다로운 문제 중 하나는 **상태 관리**다. "지금 이 작업이 어느 단계에 있는가?", "다음 단계로 넘어갈 수 있는 조건이 충족됐는가?", "실패했을 때 어디서부터 재시도해야 하는가?" 같은 질문들이 끊임없이 생긴다.
+
+이 글에서는 문서 분석 시스템의 분석 파이프라인을 설계하면서, 상태 전이 규칙을 Enum에 캡슐화하고 도메인 객체가 스스로 유효성을 검증하도록 만든 과정을 정리한다.
+
+## 분석 파이프라인의 복잡성
+
+이 시스템의 분석 파이프라인은 3단계로 구성된다.
+
+1. **EXTRACT_DOCUMENT**: 문서에서 텍스트와 이미지를 추출한다.
+2. **RECALL_CANDIDATE**: 추출된 이미지와 유사한 이미지 후보를 탐색한다.
+3. **CHECK_DUPLICATE**: 후보 이미지들과 표절 여부를 최종 판정한다.
+
+각 단계는 외부 분석 엔진을 호출하고, 처리가 완료되면 다음 단계로 넘어간다. 각 단계는 독립적으로 실패할 수 있고, 실패한 단계부터 재시도할 수 있어야 한다.
+
+여기서 상태는 두 가지 차원으로 나뉜다.
+
+- **AnalysisStatus**: 전체 작업의 진행 상태 (PENDING → PROCESSING → COMPLETED / FAILED)
+- **AnalysisStep**: 현재 파이프라인의 어느 단계를 처리 중인가 (EXTRACT_DOCUMENT → RECALL_CANDIDATE → CHECK_DUPLICATE)
+
+이 두 상태가 조합되어 "3단계 처리 중", "2단계에서 실패" 같은 상황을 표현한다.
+
+## 서비스 레이어에 if/else로 상태를 관리했다면
+
+설계를 시작하기 전에, 잘못된 설계가 어떤 모습인지 먼저 살펴보자. 많은 프로젝트에서 상태 전이 로직이 서비스 레이어에 이런 식으로 흩어져 있다.
+
+```java
+// 나쁜 예시: 서비스 레이어에 상태 전이 로직이 흩어짐
+public void processNextStep(Long jobId) {
+    AnalysisJob job = jobRepository.findById(jobId);
+
+    // 상태 전이 조건을 서비스가 직접 판단
+    if (job.getAnalysisStatus() == AnalysisStatus.PENDING) {
+        job.setAnalysisStatus(AnalysisStatus.PROCESSING);
+        job.setAnalysisStep(AnalysisStep.EXTRACT_DOCUMENT);
+    } else if (job.getAnalysisStatus() == AnalysisStatus.PROCESSING
+            && job.getAnalysisStep() == AnalysisStep.EXTRACT_DOCUMENT) {
+        job.setAnalysisStep(AnalysisStep.RECALL_CANDIDATE);
+    } else if (job.getAnalysisStatus() == AnalysisStatus.PROCESSING
+            && job.getAnalysisStep() == AnalysisStep.RECALL_CANDIDATE) {
+        job.setAnalysisStep(AnalysisStep.CHECK_DUPLICATE);
+    } else {
+        throw new IllegalStateException("Cannot transition");
+    }
+    // ...
+}
+```
+
+이 코드의 문제점이 보이는가?
+
+**첫째, 도메인 규칙이 서비스에 있다.** 상태 전이가 유효한지 판단하는 것은 비즈니스 규칙이다. 이 규칙이 서비스 코드에 섞여 있으면, 비슷한 로직이 여러 서비스에 중복되거나 서로 다르게 구현될 위험이 있다.
+
+**둘째, 도메인 객체가 빈껍데기가 된다.** `setAnalysisStatus()`, `setAnalysisStep()` 같은 Setter만 가진 객체는 그냥 데이터 구조체다. 어떤 서비스에서든 아무 상태나 마음대로 설정할 수 있어서 잘못된 상태가 만들어질 수 있다.
+
+**셋째, 테스트가 어렵다.** 상태 전이 로직을 테스트하려면 서비스 전체를 테스트해야 한다.
+
+<Callout type="error" title="Anemic Domain Model의 위험">
+Setter만 있고 비즈니스 로직이 없는 도메인 객체를 "빈혈 도메인 모델(Anemic Domain Model)"이라고 한다. 겉으로는 객체지향처럼 보이지만, 실제로는 절차적 프로그래밍과 다를 바 없다. 도메인 규칙이 서비스 전체에 흩어져 유지보수가 어려워진다.
+</Callout>
+
+## Enum으로 상태 전이 규칙을 캡슐화하기
+
+핵심 아이디어는 간단하다. **"어떤 상태에서 어떤 상태로 전이할 수 있는가"를 Enum 자신이 알고 있게 하자.**
+
+```java
+public enum AnalysisStatus {
+    PENDING("대기 중"),
+    PROCESSING("처리 중"),
+    COMPLETED("분석 완료"),
+    FAILED("분석 실패");
+
+    private final String description;
+
+    // 허용된 상태 전이 규칙을 Enum 내부에 선언
+    private static final Map<AnalysisStatus, Set<AnalysisStatus>> TRANSITIONS = Map.of(
+        PENDING,    Set.of(PROCESSING, FAILED),
+        PROCESSING, Set.of(PROCESSING, COMPLETED, FAILED),
+        COMPLETED,  Set.of(),
+        FAILED,     Set.of(PROCESSING)   // 재시도 허용
+    );
+
+    public void validateTransition(final AnalysisStatus nextStatus) {
+        if (!canTransitionTo(nextStatus)) {
+            throw new IllegalStateException(
+                "Invalid status transition from " + this + " to " + nextStatus
+            );
+        }
+    }
+
+    public boolean canTransitionTo(final AnalysisStatus nextStatus) {
+        if (this == nextStatus) return true;
+        return TRANSITIONS.getOrDefault(this, Collections.emptySet()).contains(nextStatus);
+    }
+}
+```
+
+`AnalysisStep`도 같은 방식으로 설계됐다.
+
+```java
+public enum AnalysisStep {
+    EXTRACT_DOCUMENT("문서 내용 추출"),
+    RECALL_CANDIDATE("이미지 후보 추출"),
+    CHECK_DUPLICATE("이미지 표절 검사");
+
+    private static final Map<AnalysisStep, Set<AnalysisStep>> TRANSITIONS = Map.of(
+        EXTRACT_DOCUMENT, Set.of(EXTRACT_DOCUMENT, RECALL_CANDIDATE),
+        RECALL_CANDIDATE, Set.of(RECALL_CANDIDATE, CHECK_DUPLICATE),
+        CHECK_DUPLICATE,  Set.of(CHECK_DUPLICATE, EXTRACT_DOCUMENT) // 재시작 허용
+    );
+
+    public void validateTransition(final AnalysisStep nextStep) {
+        if (!canTransitionTo(nextStep)) {
+            throw new IllegalStateException(
+                "Invalid analysis step transition from " + this + " to " + nextStep
+            );
+        }
+    }
+
+    public boolean canTransitionTo(final AnalysisStep nextStep) {
+        if (this == nextStep) return true;
+        return TRANSITIONS.getOrDefault(this, Collections.emptySet()).contains(nextStep);
+    }
+}
+```
+
+<Callout type="info" title="Map.of()로 불변 전이 테이블 선언">
+Java 9+의 `Map.of()`는 불변 맵을 생성한다. 런타임에 전이 규칙이 변경될 위험이 없다. 또한 static final로 선언해 JVM이 클래스 로딩 시점에 한 번만 초기화한다.
+</Callout>
+
+## AnalysisJob: 두 상태를 함께 관리하는 도메인 객체
+
+`AnalysisJob`은 `AnalysisStatus`와 `AnalysisStep` 두 상태를 함께 관리한다. 상태 변경 메서드는 두 Enum의 검증을 순차적으로 호출한다.
+
+```java
+public class AnalysisJob {
+    private Long id;
+    private Long documentId;
+    private String documentKey;
+    private DocumentMeta documentMeta;
+    private AnalysisStep analysisStep;
+    private AnalysisStatus analysisStatus;
+    private String errorMessage;
+
+    public static AnalysisJob createNew(
+            final Long documentId,
+            final DocumentMeta documentMeta) {
+        return AnalysisJob.builder()
+                .documentId(documentId)
+                .documentKey(documentMeta.getDocumentKey())
+                .documentMeta(documentMeta)
+                .analysisStatus(AnalysisStatus.PENDING)      // 초기 상태 고정
+                .analysisStep(AnalysisStep.EXTRACT_DOCUMENT)  // 첫 단계 고정
+                .build();
+    }
+
+    // 정상 상태 전이
+    public void updateStatus(
+            final AnalysisStatus analysisStatus,
+            final AnalysisStep analysisStep) {
+        // 도메인 규칙 검증을 Enum에 위임
+        this.analysisStatus.validateTransition(analysisStatus);
+        this.analysisStep.validateTransition(analysisStep);
+        this.analysisStatus = analysisStatus;
+        this.analysisStep = analysisStep;
+    }
+
+    // 실패 상태 전이
+    public void updateFailStatus(
+            final AnalysisStep analysisStep,
+            final String errorMessage) {
+        this.analysisStep.validateTransition(analysisStep);
+        this.analysisStatus = AnalysisStatus.FAILED;
+        this.analysisStep = analysisStep;
+        this.errorMessage = errorMessage;
+    }
+
+    public boolean isInProgress() {
+        return this.analysisStatus == AnalysisStatus.PENDING
+            || this.analysisStatus == AnalysisStatus.PROCESSING;
+    }
+}
+```
+
+이 설계에서 중요한 점은 `updateStatus()`가 단순히 값을 설정하는 것이 아니라, **유효한 전이인지 검증한 후에만 상태를 변경**한다는 것이다. 외부에서 아무 상태나 주입할 수 없다.
+
+## AnalysisStatus와 AnalysisStep을 분리한 이유
+
+처음에는 두 상태를 하나의 Enum으로 합치는 것을 고려했다. `PENDING_EXTRACT`, `PROCESSING_EXTRACT`, `PROCESSING_RECALL` 같은 식으로.
+
+그러나 이렇게 하면 조합의 수가 폭발적으로 증가한다. 3단계 파이프라인에 4가지 상태를 곱하면 이론적으로 12가지 조합이 생기고, 이 중 의미 없는 조합(예: `COMPLETED_EXTRACT`)도 생겨버린다.
+
+두 상태를 분리하면 각각이 자신의 관심사만 담당한다.
+
+- `AnalysisStatus`는 "이 작업이 진행 중인가, 완료됐는가, 실패했는가"를 표현한다.
+- `AnalysisStep`은 "지금 어느 단계를 처리하고 있는가"를 표현한다.
+
+`isInProgress()` 같은 메서드도 `AnalysisStatus`만으로 판단할 수 있어서 명확하다.
+
+<Callout type="tip" title="상태 분리 기준">
+두 가지 상태 차원이 독립적으로 변할 수 있다면 분리하는 것이 좋다. 반면 항상 함께 변한다면 하나로 합치는 것이 오히려 명확할 수 있다. 이 시스템에서는 같은 Step을 유지하면서 Status만 FAILED로 바뀌는 케이스가 있었기 때문에 분리가 자연스러웠다.
+</Callout>
+
+## 상태 전이 다이어그램
+
+### AnalysisStatus 전이
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.25rem 0'}}>AnalysisStatus 상태 전이</p>
+  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, flexWrap: 'wrap'}}>
+
+    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem'}}>
+      <div style={{width: '8px', height: '8px', borderRadius: '50%', background: '#4b5563', border: '2px solid #9ca3af'}}></div>
+      <div style={{width: 0, height: '24px', borderLeft: '1px dashed #374151'}}></div>
+    </div>
+
+    <div style={{display: 'flex', alignItems: 'center', gap: 0}}>
+      <div style={{background: '#1e2a1e', border: '2px solid #4b5563', borderRadius: '8px', padding: '0.5rem 1rem', textAlign: 'center', minWidth: '90px'}}>
+        <div style={{color: '#9ca3af', fontWeight: 700, fontSize: '0.8rem'}}>PENDING</div>
+        <div style={{color: '#4b5563', fontSize: '0.6rem'}}>대기 중</div>
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 0.3rem'}}>
+        <span style={{color: '#60a5fa', fontSize: '0.6rem', whiteSpace: 'nowrap'}}>updateStatus()</span>
+        <span style={{color: '#3b82f6', fontSize: '1rem'}}>→</span>
+      </div>
+
+      <div style={{background: '#0f1e38', border: '2px solid #3b82f6', borderRadius: '8px', padding: '0.5rem 1rem', textAlign: 'center', minWidth: '100px'}}>
+        <div style={{color: '#60a5fa', fontWeight: 700, fontSize: '0.8rem'}}>PROCESSING</div>
+        <div style={{color: '#4b5563', fontSize: '0.6rem'}}>처리 중</div>
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 0.3rem'}}>
+        <span style={{color: '#4ade80', fontSize: '0.6rem', whiteSpace: 'nowrap'}}>updateStatus()</span>
+        <span style={{color: '#22c55e', fontSize: '1rem'}}>→</span>
+      </div>
+
+      <div style={{background: '#0f2318', border: '2px solid #16a34a', borderRadius: '8px', padding: '0.5rem 1rem', textAlign: 'center', minWidth: '110px'}}>
+        <div style={{color: '#4ade80', fontWeight: 700, fontSize: '0.8rem'}}>COMPLETED</div>
+        <div style={{color: '#4b5563', fontSize: '0.6rem'}}>분석 완료</div>
+        <div style={{width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', border: '2px solid #4ade80', margin: '4px auto 0'}}></div>
+      </div>
+    </div>
+  </div>
+
+  <div style={{display: 'flex', justifyContent: 'center', marginTop: '0.75rem'}}>
+    <div style={{background: '#1c0f0f', border: '2px solid #dc2626', borderRadius: '8px', padding: '0.5rem 1.5rem', textAlign: 'center', position: 'relative'}}>
+      <div style={{color: '#f87171', fontWeight: 700, fontSize: '0.8rem'}}>FAILED</div>
+      <div style={{color: '#4b5563', fontSize: '0.6rem'}}>분석 실패</div>
+    </div>
+  </div>
+
+  <div style={{marginTop: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center'}}>
+    {[
+      {from: 'PENDING', to: 'FAILED', label: 'updateFailStatus()', color: '#dc2626'},
+      {from: 'PROCESSING', to: 'FAILED', label: 'updateFailStatus()', color: '#dc2626'},
+      {from: 'FAILED', to: 'PROCESSING', label: 'updateStatus() — 재시도', color: '#f97316'},
+      {from: 'PROCESSING', to: 'PROCESSING', label: 'updateStatus() — 단계 진행', color: '#3b82f6'},
+    ].map(({from, to, label, color}) => (
+      <div key={label} style={{background: '#161b22', border: `1px solid ${color}33`, borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.65rem'}}>
+        <span style={{color: '#6b7280'}}>{from}</span>
+        <span style={{color: color, margin: '0 0.3rem'}}>→</span>
+        <span style={{color: '#6b7280'}}>{to}</span>
+        <span style={{color: '#374151', marginLeft: '0.3rem'}}>· {label}</span>
+      </div>
+    ))}
+  </div>
+</div>
+
+### AnalysisStep 전이
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.25rem 0'}}>AnalysisStep 전이 — createNew() 시 EXTRACT_DOCUMENT 고정</p>
+  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0}}>
+
+    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+      <div style={{width: '8px', height: '8px', borderRadius: '50%', background: '#4b5563', border: '2px solid #9ca3af'}}></div>
+      <div style={{width: 0, height: '16px', borderLeft: '1px dashed #374151'}}></div>
+    </div>
+
+    <div style={{display: 'flex', alignItems: 'center', gap: 0}}>
+
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+        <div style={{background: '#0c1a2e', border: '2px solid #0369a1', borderRadius: '8px', padding: '0.6rem 0.75rem', textAlign: 'center', position: 'relative'}}>
+          <div style={{color: '#38bdf8', fontWeight: 700, fontSize: '0.75rem'}}>EXTRACT_DOCUMENT</div>
+          <div style={{color: '#4b5563', fontSize: '0.6rem', marginTop: '2px'}}>문서 내용 추출</div>
+          <div style={{position: 'absolute', top: '-18px', right: '4px', color: '#374151', fontSize: '0.6rem', whiteSpace: 'nowrap'}}>↺ 재시도</div>
+        </div>
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 0.2rem'}}>
+        <span style={{color: '#60a5fa', fontSize: '0.55rem', whiteSpace: 'nowrap'}}>추출 완료</span>
+        <span style={{color: '#3b82f6', fontSize: '1rem'}}>→</span>
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+        <div style={{background: '#0c1a2e', border: '2px solid #0369a1', borderRadius: '8px', padding: '0.6rem 0.75rem', textAlign: 'center', position: 'relative'}}>
+          <div style={{color: '#38bdf8', fontWeight: 700, fontSize: '0.75rem'}}>RECALL_CANDIDATE</div>
+          <div style={{color: '#4b5563', fontSize: '0.6rem', marginTop: '2px'}}>이미지 후보 탐색</div>
+          <div style={{position: 'absolute', top: '-18px', right: '4px', color: '#374151', fontSize: '0.6rem', whiteSpace: 'nowrap'}}>↺ 재시도</div>
+        </div>
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 0.2rem'}}>
+        <span style={{color: '#60a5fa', fontSize: '0.55rem', whiteSpace: 'nowrap'}}>탐색 완료</span>
+        <span style={{color: '#3b82f6', fontSize: '1rem'}}>→</span>
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+        <div style={{background: '#0c1a2e', border: '2px solid #0369a1', borderRadius: '8px', padding: '0.6rem 0.75rem', textAlign: 'center', position: 'relative'}}>
+          <div style={{color: '#38bdf8', fontWeight: 700, fontSize: '0.75rem'}}>CHECK_DUPLICATE</div>
+          <div style={{color: '#4b5563', fontSize: '0.6rem', marginTop: '2px'}}>표절 검사</div>
+          <div style={{position: 'absolute', top: '-18px', right: '4px', color: '#374151', fontSize: '0.6rem', whiteSpace: 'nowrap'}}>↺ 재시도</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div style={{textAlign: 'center', marginTop: '0.5rem'}}>
+    <span style={{color: '#374151', fontSize: '0.65rem'}}>전체 재시작: CHECK_DUPLICATE → EXTRACT_DOCUMENT (허용)</span>
+  </div>
+</div>
+
+### 실제 파이프라인 흐름
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.25rem 0'}}>실제 파이프라인 — Status × Step 조합 흐름</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.4rem'}}>
+    {[
+      {status: 'PENDING', step: 'EXTRACT_DOCUMENT', statusColor: '#9ca3af', stepColor: '#38bdf8', bg: '#111827', border: '#374151', label: '① 분석 작업 생성'},
+      {status: 'PROCESSING', step: 'EXTRACT_DOCUMENT', statusColor: '#60a5fa', stepColor: '#38bdf8', bg: '#0c1a2e', border: '#1d4ed8', label: '② 처리 시작 → 문서 추출'},
+      {status: 'PROCESSING', step: 'RECALL_CANDIDATE', statusColor: '#60a5fa', stepColor: '#38bdf8', bg: '#0c1a2e', border: '#1d4ed8', label: '③ 이미지 후보 탐색'},
+      {status: 'PROCESSING', step: 'CHECK_DUPLICATE', statusColor: '#60a5fa', stepColor: '#38bdf8', bg: '#0c1a2e', border: '#1d4ed8', label: '④ 표절 검사'},
+      {status: 'COMPLETED', step: 'CHECK_DUPLICATE', statusColor: '#4ade80', stepColor: '#38bdf8', bg: '#0f2318', border: '#16a34a', label: '⑤ 분석 완료'},
+    ].map(({status, step, statusColor, stepColor, bg, border, label}, i) => (
+      <div key={i}>
+        {i > 0 && <div style={{textAlign: 'center', color: '#1f2937', fontSize: '0.75rem', lineHeight: 1}}>↓</div>}
+        <div style={{background: bg, border: `1px solid ${border}`, borderRadius: '8px', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+          <span style={{color: '#374151', fontSize: '0.65rem', minWidth: '150px'}}>{label}</span>
+          <div style={{display: 'flex', gap: '0.4rem', flex: 1, justifyContent: 'center'}}>
+            <span style={{background: '#161b22', border: `1px solid ${border}`, borderRadius: '4px', padding: '0.15rem 0.5rem', color: statusColor, fontSize: '0.7rem', fontWeight: 600}}>{status}</span>
+            <span style={{color: '#374151', fontSize: '0.75rem'}}>/</span>
+            <span style={{background: '#161b22', border: `1px solid ${border}`, borderRadius: '4px', padding: '0.15rem 0.5rem', color: stepColor, fontSize: '0.7rem', fontWeight: 600}}>{step}</span>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <div style={{marginTop: '0.75rem', display: 'flex', gap: '0.5rem'}}>
+    <div style={{flex: 1, background: '#1c0f0f', border: '1px solid #dc2626', borderRadius: '8px', padding: '0.5rem', textAlign: 'center'}}>
+      <div style={{color: '#f87171', fontWeight: 700, fontSize: '0.75rem'}}>FAILED / (현재 단계)</div>
+      <div style={{color: '#4b5563', fontSize: '0.6rem', marginTop: '2px'}}>실패 → updateFailStatus() → 재시도 시 PROCESSING으로 복귀</div>
+    </div>
+  </div>
+</div>
+
+## 도메인 검증이 일어나는 흐름
+
+실제로 서비스 코드에서 상태 전이를 호출하는 흐름을 보면, 도메인 검증이 어디서 일어나는지 명확해진다.
+
+```java
+// 서비스 코드 (간략화)
+public void completeExtraction(Long jobId) {
+    AnalysisJob job = jobRepository.findById(jobId)
+        .orElseThrow(() -> new CoreException(ErrorType.NOT_FOUND));
+
+    // 서비스는 "무엇을 할지"만 지시한다.
+    // "할 수 있는지"는 도메인이 판단한다.
+    job.updateStatus(AnalysisStatus.PROCESSING, AnalysisStep.RECALL_CANDIDATE);
+
+    jobRepository.save(job);
+}
+```
+
+서비스 코드는 놀랍도록 단순하다. 상태 전이가 유효한지 판단하는 복잡한 if/else 로직이 전혀 없다. 유효하지 않은 전이라면 `AnalysisStatus.validateTransition()` 또는 `AnalysisStep.validateTransition()`에서 즉시 예외가 발생한다.
+
+<Steps>
+  <Step title="서비스가 상태 변경 요청">
+    서비스는 도메인 규칙을 모른 채 `job.updateStatus(nextStatus, nextStep)`을 호출한다.
+  </Step>
+  <Step title="AnalysisJob이 두 Enum에 검증 위임">
+    `updateStatus()` 내부에서 `this.analysisStatus.validateTransition(analysisStatus)`와 `this.analysisStep.validateTransition(analysisStep)`을 순차 호출한다.
+  </Step>
+  <Step title="Enum이 전이 테이블에서 허용 여부 확인">
+    각 Enum은 자신의 `TRANSITIONS` 맵에서 현재 상태 → 다음 상태가 허용되는지 확인한다.
+  </Step>
+  <Step title="유효하면 상태 변경, 무효하면 예외">
+    전이가 허용되면 상태가 변경된다. 허용되지 않으면 `IllegalStateException`이 발생해 서비스 레이어로 전파된다.
+  </Step>
+</Steps>
+
+## 정보전문가 패턴 관점에서
+
+이 설계는 **정보전문가(Information Expert) 패턴**을 충실히 따른다.
+
+정보전문가 패턴의 핵심은 "어떤 책임을 수행하는 데 필요한 정보를 가진 객체에 그 책임을 할당하라"는 것이다.
+
+"이 상태 전이가 유효한가?"라는 질문에 답하려면 "어떤 전이가 허용되는가"라는 정보가 필요하다. 이 정보를 가장 잘 아는 객체는 바로 `AnalysisStatus` Enum 자신이다. 따라서 검증 책임을 Enum에 할당하는 것이 자연스럽다.
+
+서비스가 이 정보를 외부에서 가져와 판단하는 것은 정보전문가 패턴을 위반한다. "내가 어떤 상태인지는 내가 가장 잘 안다."
+
+## 이 설계의 장점
+
+**잘못된 상태 전이가 런타임에 즉시 차단된다.** 개발자 실수나 예상치 못한 이벤트 순서로 인한 잘못된 상태 전이가 도메인 레벨에서 예외를 발생시킨다. 데이터베이스에 잘못된 상태가 저장되는 상황 자체가 방지된다.
+
+**상태 전이 규칙이 한 곳에 모여 있다.** TRANSITIONS 맵을 보면 어떤 전이가 허용되는지 한눈에 파악할 수 있다. 규칙이 서비스 여러 곳에 흩어져 있지 않다.
+
+**테스트가 단순해진다.** 각 Enum의 `validateTransition()` 메서드를 독립적으로 테스트할 수 있다. Spring Context나 DB 없이도 도메인 규칙의 정확성을 검증할 수 있다.
+
+```java
+@Test
+void 유효한_상태_전이는_허용된다() {
+    assertDoesNotThrow(() ->
+        AnalysisStatus.PENDING.validateTransition(AnalysisStatus.PROCESSING)
+    );
+}
+
+@Test
+void 완료_상태에서_다른_상태로_전이하면_예외가_발생한다() {
+    assertThrows(IllegalStateException.class, () ->
+        AnalysisStatus.COMPLETED.validateTransition(AnalysisStatus.PROCESSING)
+    );
+}
+```
+
+**비즈니스 의도가 코드에 드러난다.** `FAILED`에서 `PROCESSING`으로의 전이가 허용된다는 것은 "실패한 작업을 재시도할 수 있다"는 비즈니스 규칙을 코드로 표현한 것이다. 주석 없이도 의도가 명확하다.
+
+## 정리
+
+상태 전이 로직을 서비스에서 도메인 Enum으로 옮기는 것은 작은 변화처럼 보이지만, 효과는 크다. 서비스가 단순해지고, 도메인 규칙이 응집되며, 잘못된 상태가 만들어지는 경우가 원천 차단된다.
+
+다음 편에서는 파일 스토리지 연동을 **Port & Adapter 패턴**으로 설계한 방법을 다룬다. 왜 서버가 파일을 중계하지 않고 Presigned URL 방식을 선택했는지, 그리고 FileStorage 인터페이스 하나로 기술 교체 유연성을 어떻게 확보했는지 살펴볼 것이다.

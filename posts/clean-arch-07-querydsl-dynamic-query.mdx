@@ -1,0 +1,385 @@
+---
+title: "QueryDSL로 복잡한 동적 검색 쿼리 설계하기"
+date: 2025-10-30
+description: "상태, 카테고리, 날짜 범위, 도메인을 조합하는 복잡한 동적 검색 요구사항을 QueryDSL로 해결하고, 소프트 딜리트와 인덱스 설계까지 고민한 경험을 공유합니다."
+series: "클린 아키텍처로 실제 서비스 만들기"
+categories:
+  - Development
+  - Architecture
+tags:
+  - Clean Architecture
+  - Spring Boot
+  - Java
+  - QueryDSL
+  - JPA
+---
+
+## 검색 요구사항: 조합이 너무 많다
+
+문서 분석 시스템에서 사용자는 분석된 문서 목록을 다양한 조건으로 검색할 수 있어야 했다. 기획에서 나온 검색 조건은 다음과 같았다.
+
+- **status**: 분석 대기 / 분석 중 / 분석 완료 / 실패 (복수 선택 가능)
+- **category**: 문서 카테고리 (복수 선택 가능)
+- **dateRange**: 업로드 날짜 범위 (시작일, 종료일)
+- **domain**: 문서 도메인 (법률, 의료, 금융 등, 복수 선택 가능)
+- **keyword**: 문서 제목 또는 내용 키워드
+
+각 조건은 **선택적**이다. 모든 조건이 올 수도 있고, 하나도 없을 수도 있다. 조건들의 조합 경우의 수는 2^5 = 32가지 이상이다.
+
+---
+
+## 왜 JPQL/Native Query로는 어려웠나
+
+가장 먼저 시도한 방법은 JPQL이었다.
+
+```java
+// 이런 코드가 만들어진다
+@Query("""
+    SELECT d FROM Document d
+    WHERE (:statuses IS NULL OR d.status IN :statuses)
+    AND (:categories IS NULL OR d.category IN :categories)
+    AND (:startDate IS NULL OR d.createdAt >= :startDate)
+    AND (:endDate IS NULL OR d.createdAt <= :endDate)
+    AND (:domains IS NULL OR d.domain IN :domains)
+    AND (:keyword IS NULL OR d.title LIKE %:keyword% OR d.content LIKE %:keyword%)
+    AND d.deletedAt IS NULL
+    """)
+List<Document> search(
+    @Param("statuses") List<String> statuses,
+    @Param("categories") List<String> categories,
+    // ...
+);
+```
+
+겉으로는 동작하는 것처럼 보이지만, 실제로는 여러 문제가 있다.
+
+<Callout type="warning" title="JPQL 동적 쿼리의 문제점">
+1. **타입 안전성 없음**: 컬럼명, 파라미터명을 문자열로 작성하므로 오타가 런타임에서야 발견된다
+2. **NULL 처리 불안정**: `:statuses IS NULL OR d.status IN :statuses` 패턴은 빈 리스트 전달 시 DB마다 동작이 다르다
+3. **복잡도 증가**: 조건이 늘어날수록 쿼리 문자열이 길어지고 가독성이 급격히 떨어진다
+4. **IDE 지원 부족**: 자동완성, 리팩토링 지원이 안 된다
+5. **페이지네이션과 카운트 쿼리 분리**: `countQuery`를 별도로 작성해야 하는데 문자열 중복이 심하다
+</Callout>
+
+---
+
+## QueryDSL 선택 이유
+
+QueryDSL을 선택한 이유는 세 가지다.
+
+**첫째, 타입 안전성.** Q클래스를 통해 컬럼명, 타입이 컴파일 타임에 검증된다. `QDocument.document.status`는 타입이 `DocumentStatus` enum임이 보장된다.
+
+**둘째, 동적 쿼리의 우아한 표현.** `BooleanExpression`을 조합하는 방식으로 null-safe한 동적 조건을 깔끔하게 작성할 수 있다.
+
+**셋째, IDE 지원.** 자동완성이 되고, 컬럼명 변경 시 리팩토링이 전체 코드에 반영된다.
+
+---
+
+## Q클래스 생성 전략: Gradle 빌드 설정
+
+QueryDSL 5.x부터는 `jakarta.persistence` 패키지를 사용하고, Gradle 설정 방식도 달라졌다.
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("com.querydsl:querydsl-jpa:5.1.0:jakarta")
+    annotationProcessor("com.querydsl:querydsl-apt:5.1.0:jakarta")
+    annotationProcessor("jakarta.annotation:jakarta.annotation-api")
+    annotationProcessor("jakarta.persistence:jakarta.persistence-api")
+}
+
+// Q클래스 생성 경로 설정
+val generated = "src/main/generated"
+
+sourceSets {
+    main {
+        java.srcDirs(generated)
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.generatedSourceOutputDirectory = file(generated)
+}
+
+tasks.named("clean") {
+    doLast {
+        file(generated).deleteRecursively()
+    }
+}
+```
+
+<Callout type="info" title="Q클래스를 .gitignore에 추가해야 하는 이유">
+Q클래스는 빌드 시 자동 생성되는 코드다. 이를 git에 커밋하면 엔티티가 변경될 때마다 Q클래스도 함께 커밋되어 불필요한 diff가 생긴다. `src/main/generated/` 디렉토리를 `.gitignore`에 추가하고, CI/CD 파이프라인에서 빌드 시 자동 생성되도록 설정하는 것이 올바른 방법이다.
+</Callout>
+
+---
+
+## BooleanExpression으로 null-safe 동적 조건 조합
+
+QueryDSL의 핵심 패턴은 **null을 반환하는 메서드**를 `where()`에 조합하는 것이다. `where()`에 `null`이 전달되면 QueryDSL이 자동으로 해당 조건을 무시한다.
+
+```java
+@Repository
+@RequiredArgsConstructor
+public class DocumentQueryRepository {
+
+    private final JPAQueryFactory queryFactory;
+
+    public Page<Document> search(DocumentSearchCondition condition, Pageable pageable) {
+        List<Document> content = queryFactory
+                .selectFrom(document)
+                .where(
+                        statusIn(condition.statuses()),
+                        categoryIn(condition.categories()),
+                        dateRangeBetween(condition.startDate(), condition.endDate()),
+                        domainIn(condition.domains()),
+                        keywordContains(condition.keyword()),
+                        notDeleted()  // 소프트 딜리트 조건은 항상 포함
+                )
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .orderBy(document.createdAt.desc())
+                .fetch();
+
+        Long total = queryFactory
+                .select(document.count())
+                .from(document)
+                .where(
+                        statusIn(condition.statuses()),
+                        categoryIn(condition.categories()),
+                        dateRangeBetween(condition.startDate(), condition.endDate()),
+                        domainIn(condition.domains()),
+                        keywordContains(condition.keyword()),
+                        notDeleted()
+                )
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0);
+    }
+
+    // 각 조건을 메서드로 분리 — null이면 조건 제외
+    private BooleanExpression statusIn(List<DocumentStatus> statuses) {
+        if (statuses == null || statuses.isEmpty()) return null;
+        return document.status.in(statuses);
+    }
+
+    private BooleanExpression categoryIn(List<String> categories) {
+        if (categories == null || categories.isEmpty()) return null;
+        return document.category.in(categories);
+    }
+
+    private BooleanExpression dateRangeBetween(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null && endDate == null) return null;
+        if (startDate == null) return document.createdAt.loe(endDate.atTime(23, 59, 59));
+        if (endDate == null) return document.createdAt.goe(startDate.atStartOfDay());
+        return document.createdAt.between(
+                startDate.atStartOfDay(),
+                endDate.atTime(23, 59, 59)
+        );
+    }
+
+    private BooleanExpression domainIn(List<String> domains) {
+        if (domains == null || domains.isEmpty()) return null;
+        return document.domain.in(domains);
+    }
+
+    private BooleanExpression keywordContains(String keyword) {
+        if (keyword == null || keyword.isBlank()) return null;
+        return document.title.containsIgnoreCase(keyword)
+                .or(document.content.containsIgnoreCase(keyword));
+    }
+
+    private BooleanExpression notDeleted() {
+        return document.deletedAt.isNull();
+    }
+}
+```
+
+각 조건을 **독립적인 메서드**로 분리한 것이 포인트다. 이렇게 하면:
+
+- 각 조건을 개별적으로 테스트할 수 있다
+- 조건 추가/수정이 특정 메서드만 건드리면 된다
+- `where()` 절이 선언적으로 읽힌다
+
+---
+
+## 소프트 딜리트(deletedAt)와 인덱스 설계 고민
+
+### SoftDeleteBaseEntity
+
+```java
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
+public abstract class SoftDeleteBaseEntity {
+
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+
+    private LocalDateTime deletedAt;
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+}
+```
+
+소프트 딜리트는 데이터를 실제로 삭제하지 않고 `deletedAt`에 삭제 시각을 기록하는 방식이다. 이렇게 하면 삭제된 데이터를 복구하거나 감사 로그로 활용할 수 있다.
+
+### 인덱스 설계: 소프트 딜리트를 고려한 복합 인덱스
+
+소프트 딜리트를 쓸 때 가장 큰 성능 함정은 **모든 쿼리에 `WHERE deletedAt IS NULL`이 붙는다**는 점이다. 일반 인덱스는 `deletedAt IS NULL`인 행과 아닌 행을 구분하지 않으므로, 삭제된 데이터가 많아질수록 인덱스 효율이 떨어진다.
+
+```sql
+-- documentKey에 unique 인덱스 (논리 삭제를 고려)
+-- 삭제된 같은 key가 재등록될 수 있으므로 단순 unique 인덱스는 불가
+CREATE UNIQUE INDEX idx_document_key_not_deleted
+ON document (document_key)
+WHERE deleted_at IS NULL;  -- 부분 인덱스 (PostgreSQL)
+
+-- 검색에 자주 쓰이는 복합 인덱스
+CREATE INDEX idx_document_search
+ON document (status, category, domain, created_at)
+WHERE deleted_at IS NULL;  -- 삭제된 데이터 제외
+```
+
+<Callout type="tip" title="MySQL vs PostgreSQL의 부분 인덱스 지원 차이">
+PostgreSQL은 `WHERE deleted_at IS NULL` 형태의 **부분 인덱스(Partial Index)**를 지원한다. MySQL은 부분 인덱스를 지원하지 않으므로, `deleted_at`을 복합 인덱스에 포함시키는 방식을 사용해야 한다.
+
+MySQL에서의 대안:
+```sql
+CREATE INDEX idx_document_search
+ON document (deleted_at, status, category, created_at);
+-- deleted_at IS NULL인 경우 첫 번째 컬럼이 NULL이므로 NULL 범위 스캔 활용
+```
+</Callout>
+
+### documentKey에 unique 인덱스 설계 고민
+
+문서에는 외부에서 오는 고유 식별자인 `documentKey`가 있다. 같은 키의 문서가 중복 등록되면 안 된다. 그런데 소프트 딜리트를 쓰면 문제가 생긴다.
+
+> 같은 `documentKey`의 문서가 삭제 후 재등록되면?
+
+단순히 `documentKey`에 unique 인덱스를 걸면 재등록이 불가능해진다. 해결 방법은 두 가지다.
+
+**방법 1**: 앞서 소개한 부분 인덱스 (PostgreSQL)
+```sql
+CREATE UNIQUE INDEX idx_document_key_active
+ON document (document_key)
+WHERE deleted_at IS NULL;
+```
+
+**방법 2**: 애플리케이션 레벨에서 중복 검사
+```java
+// Repository에서 활성 문서 중 같은 키가 있는지 확인
+public boolean existsActiveByDocumentKey(String documentKey) {
+    return queryFactory
+            .selectOne()
+            .from(document)
+            .where(
+                    document.documentKey.eq(documentKey),
+                    document.deletedAt.isNull()
+            )
+            .fetchFirst() != null;
+}
+```
+
+이 프로젝트에서는 PostgreSQL을 사용했으므로 부분 인덱스 방식을 선택했다. DB 레벨의 제약조건이 애플리케이션 레벨의 검사보다 더 강력하게 데이터 정합성을 보장하기 때문이다.
+
+---
+
+## 성능 고려사항: 인덱스 전략 정리
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.25rem 0'}}>검색 조건 유형별 인덱스 전략</p>
+
+  <div style={{display: 'flex', justifyContent: 'center', marginBottom: '0.75rem'}}>
+    <div style={{background: '#161b22', border: '2px solid #6b7280', borderRadius: '8px', padding: '0.5rem 1.5rem', textAlign: 'center'}}>
+      <span style={{color: '#d1d5db', fontWeight: 700, fontSize: '0.85rem'}}>검색 쿼리</span>
+      <div style={{color: '#4b5563', fontSize: '0.65rem'}}>DocumentQueryRepository.search()</div>
+    </div>
+  </div>
+
+  <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem'}}>
+    {[
+      {
+        type: '동등 조건 (=, IN)',
+        fields: 'status, category, domain',
+        strategy: '복합 인덱스 앞쪽 배치',
+        detail: '카디널리티 높은 순서로 배치 (category > status)',
+        color: '#3b82f6',
+        bg: '#0f1729',
+        border: '#1d4ed8',
+        code: 'statusIn(), categoryIn(), domainIn()',
+      },
+      {
+        type: '범위 조건 (BETWEEN)',
+        fields: 'createdAt between startDate~endDate',
+        strategy: '복합 인덱스 마지막 배치',
+        detail: '범위 조건 뒤의 컬럼은 인덱스 불활용',
+        color: '#f97316',
+        bg: '#1c1208',
+        border: '#c2410c',
+        code: 'dateRangeBetween()',
+      },
+      {
+        type: 'NULL 조건',
+        fields: 'deletedAt IS NULL (소프트 딜리트)',
+        strategy: '부분 인덱스 (Partial Index)',
+        detail: 'WHERE deleted_at IS NULL — 삭제 데이터 제외',
+        color: '#a855f7',
+        bg: '#16111a',
+        border: '#7c3aed',
+        code: 'notDeleted() — 항상 포함',
+      },
+      {
+        type: 'LIKE 조건',
+        fields: 'title LIKE %keyword%',
+        strategy: 'Full-text Index 별도 고려',
+        detail: 'LIKE %..% 는 일반 인덱스 불가 → GIN 또는 Elasticsearch',
+        color: '#eab308',
+        bg: '#1a1508',
+        border: '#a16207',
+        code: 'keywordContains() — 성능 주의',
+      },
+    ].map(({type, fields, strategy, detail, color, bg, border, code}) => (
+      <div key={type} style={{background: bg, border: `1px solid ${border}`, borderRadius: '8px', padding: '0.75rem'}}>
+        <div style={{color: color, fontWeight: 700, fontSize: '0.75rem', marginBottom: '0.3rem'}}>{type}</div>
+        <div style={{color: '#6b7280', fontSize: '0.65rem', marginBottom: '0.3rem'}}>필드: {fields}</div>
+        <div style={{background: '#0d1117', borderRadius: '4px', padding: '0.3rem 0.5rem', marginBottom: '0.3rem'}}>
+          <div style={{color: '#e2e8f0', fontWeight: 600, fontSize: '0.7rem'}}>→ {strategy}</div>
+          <div style={{color: '#4b5563', fontSize: '0.6rem', marginTop: '1px'}}>{detail}</div>
+        </div>
+        <div style={{color: '#374151', fontSize: '0.6rem', fontFamily: 'monospace'}}>{code}</div>
+      </div>
+    ))}
+  </div>
+
+  <div style={{marginTop: '0.75rem', background: '#161b22', border: '1px solid #1f2937', borderRadius: '6px', padding: '0.5rem 0.75rem'}}>
+    <span style={{color: '#4ade80', fontWeight: 700, fontSize: '0.65rem'}}>BooleanExpression</span>
+    <span style={{color: '#4b5563', fontSize: '0.65rem', marginLeft: '0.5rem'}}>조건 메서드가 null을 반환하면 QueryDSL이 자동으로 해당 조건을 where()에서 제외</span>
+  </div>
+</div>
+
+인덱스 설계에서 지킨 원칙:
+
+1. **카디널리티가 높은 컬럼을 복합 인덱스 앞에**: `status`(4가지)보다 `category`(수십 가지)가 카디널리티가 높으므로 앞에 배치
+2. **범위 조건은 복합 인덱스 마지막에**: `BETWEEN`이나 `>=`, `<=` 조건은 그 뒤 컬럼의 인덱스를 활용하지 못한다
+3. **LIKE 조건은 full-text 인덱스 별도 고려**: `LIKE '%keyword%'`는 일반 인덱스를 타지 않는다. 키워드 검색 빈도가 높다면 PostgreSQL의 `GIN` 인덱스나 Elasticsearch 도입을 고려해야 한다
+
+---
+
+## 설계 회고
+
+QueryDSL을 쓰면서 가장 좋았던 점은 **"이 조건이 실제로 쿼리에 들어가는가"를 코드만 보고 확인할 수 있다**는 점이었다. JPQL 문자열을 읽으며 조건이 올바른지 추론하던 것과 비교하면 인지 부하가 확연히 줄었다.
+
+아쉬운 점은 **빌드 시간**이다. Q클래스 생성을 위한 annotation processing 단계가 추가되므로, 엔티티가 많아질수록 빌드가 느려진다. 이는 클린 빌드 시 특히 두드러진다. Gradle의 빌드 캐시를 활용하면 증분 빌드에서는 크게 느려지지 않지만, 초기 설정이 필요하다.
+
+또한 QueryDSL은 JPA 구현(Hibernate)에 의존적이다. 만약 나중에 MyBatis나 JDBC Template으로 전환해야 한다면, QueryDSL 코드 전체를 다시 작성해야 한다. 이 프로젝트에서는 JPA를 계속 사용할 것으로 판단했기 때문에 수용 가능한 트레이드오프였다.
