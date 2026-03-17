@@ -1,0 +1,292 @@
+---
+title: "Strategy + Factory 패턴으로 정렬 전략 깔끔하게 관리하기"
+date: 2024-11-18
+description: "정렬 방식 3개째가 추가되면서 Service가 50줄을 넘긴 순간, Strategy + Factory로 분리한 이야기"
+summary: "if-else 2개까지는 참았지만, 3개째에서 패턴을 도입한 타이밍과 그 경계선에 대한 경험"
+categories:
+  - Development
+  - Architecture
+tags:
+  - Design Pattern
+  - Strategy Pattern
+  - Factory Pattern
+  - Java
+---
+
+처음에 면접 일정 목록의 정렬 방식은 "최신순" 하나뿐이었다. 그래서 Service에 `Comparator.comparing(ScheduleEntity::getCreatedAt).reversed()` 한 줄이면 됐다. 문제는 기획자가 "확정된 일정이 위에 와야 하지 않을까요?"라고 말한 순간부터 시작됐다.
+
+## if-else의 시작
+
+"확정 우선순" 정렬을 추가했다. Service에 if-else를 넣었다.
+
+```java
+// 첫 번째 추가 — 아직은 괜찮아 보인다
+public List<ScheduleDto> getSchedules(final String sortType) {
+    final List<ScheduleEntity> schedules = scheduleReader.findAll();
+
+    if ("confirmed".equals(sortType)) {
+        schedules.sort((a, b) -> {
+            if (a.getStatus() == CONFIRMED && b.getStatus() != CONFIRMED) return -1;
+            if (a.getStatus() != CONFIRMED && b.getStatus() == CONFIRMED) return 1;
+            return a.getCreatedAt().compareTo(b.getCreatedAt());
+        });
+    } else {
+        schedules.sort(Comparator.comparing(ScheduleEntity::getCreatedAt).reversed());
+    }
+
+    return schedules.stream().map(ScheduleDto::from).toList();
+}
+```
+
+2주 뒤 "최근 수정순"도 추가해달라는 요청이 왔다. else if가 하나 더 붙었다. 그 다음 주에는 "면접 시간이 가까운 순"이 요청됐다. Service 메서드가 50줄을 넘기고 있었다.
+
+```java
+// 이렇게 되기 전에 멈춰야 한다
+public List<ScheduleDto> getSchedules(final String sortType) {
+    final List<ScheduleEntity> schedules = scheduleReader.findAll();
+
+    if ("default".equals(sortType)) {
+        schedules.sort(Comparator.comparing(ScheduleEntity::getCreatedAt).reversed());
+    } else if ("confirmed".equals(sortType)) {
+        schedules.sort((a, b) -> {
+            if (a.getStatus() == CONFIRMED && b.getStatus() != CONFIRMED) return -1;
+            if (a.getStatus() != CONFIRMED && b.getStatus() == CONFIRMED) return 1;
+            return a.getCreatedAt().compareTo(b.getCreatedAt());
+        });
+    } else if ("recent".equals(sortType)) {
+        schedules.sort(Comparator.comparing(ScheduleEntity::getUpdatedAt).reversed());
+    } else if ("upcoming".equals(sortType)) {
+        // 또 추가...
+    }
+
+    return schedules.stream().map(ScheduleDto::from).toList();
+}
+```
+
+문제가 보인다. **정렬 로직은 비즈니스 규칙인데 Service가 그 세부 구현을 전부 알고 있다.** 새 정렬 방식이 추가될 때마다 Service를 수정해야 하고, "확정 우선순"의 비교 로직을 바꿀 때도 이 거대한 메서드를 건드려야 한다. Open/Closed Principle 위반의 교과서적 사례다.
+
+<Callout type="warning" title="if-else 2개까지는 참을 수 있다">
+정렬 방식이 2개일 때는 if-else가 오히려 간결하다. 하지만 3개가 되는 순간 패턴 도입을 고려해야 한다. 우리는 3개째에서 분리했다.
+</Callout>
+
+## Strategy 인터페이스 추출
+
+정렬 방식마다 "입력(리스트)을 받아서 정렬된 리스트를 반환한다"는 계약이 동일하다. 인터페이스로 추출했다.
+
+```java
+public interface ScheduleSortingStrategy {
+
+    List<ScheduleEntity> sort(
+        List<ScheduleEntity> schedules,
+        LocalDateTime referenceTime
+    );
+}
+```
+
+`referenceTime`은 "현재 시간 기준"으로 정렬할 때 사용한다. "오늘 이후의 확정된 일정 우선" 같은 조건에 필요하다. 테스트에서 시간을 고정할 수 있게 파라미터로 받는다.
+
+## 각 전략을 독립 클래스로
+
+```java
+@Component
+public class DefaultSortingStrategy implements ScheduleSortingStrategy {
+
+    @Override
+    public List<ScheduleEntity> sort(
+        final List<ScheduleEntity> schedules,
+        final LocalDateTime referenceTime
+    ) {
+        return schedules.stream()
+            .sorted(Comparator.comparing(ScheduleEntity::getCreatedAt).reversed())
+            .toList();
+    }
+}
+```
+
+```java
+@Component
+public class ConfirmedSortingStrategy implements ScheduleSortingStrategy {
+
+    @Override
+    public List<ScheduleEntity> sort(
+        final List<ScheduleEntity> schedules,
+        final LocalDateTime referenceTime
+    ) {
+        return schedules.stream()
+            .sorted(
+                Comparator
+                    .comparing((ScheduleEntity s) ->
+                        s.getStatus() == ScheduleStatus.CONFIRMED ? 0 : 1)
+                    .thenComparing(s ->
+                        s.getScheduleDate().getStartAt())
+            )
+            .toList();
+    }
+}
+```
+
+각 전략은 자기 정렬 로직만 안다. `ConfirmedSortingStrategy`는 "기본순이 뭔지" 모르고, `DefaultSortingStrategy`는 "확정 상태가 뭔지" 모른다. 이게 Single Responsibility다.
+
+<Callout type="tip" title="각 전략이 독립적으로 테스트 가능">
+`ConfirmedSortingStrategy` 테스트에서 CONFIRMED 상태인 Entity와 아닌 Entity를 넣고, CONFIRMED가 앞에 오는지만 검증하면 된다. 다른 전략의 존재를 알 필요가 없다.
+</Callout>
+
+## Factory로 전략 선택을 캡슐화
+
+"어떤 sortType이면 어떤 전략을 쓸 것인가"를 Factory에 몰아넣었다.
+
+```java
+@Component
+@RequiredArgsConstructor
+public class ScheduleSortingStrategyFactory {
+
+    private final DefaultSortingStrategy defaultStrategy;
+    private final ConfirmedSortingStrategy confirmedStrategy;
+
+    public ScheduleSortingStrategy getStrategy(final String sortType) {
+        return switch (sortType) {
+            case "confirmed" -> confirmedStrategy;
+            default -> defaultStrategy;
+        };
+    }
+}
+```
+
+Service(UseCase)에서는 Factory에게 전략을 받아서 실행만 한다.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class GetScheduleUseCase {
+
+    private final ScheduleReader scheduleReader;
+    private final ScheduleSortingStrategyFactory sortingStrategyFactory;
+
+    public List<ScheduleDto> execute(
+        final String postingId,
+        final String sortType
+    ) {
+        final List<ScheduleEntity> schedules = scheduleReader.findByPostingId(postingId);
+        final ScheduleSortingStrategy strategy = sortingStrategyFactory.getStrategy(sortType);
+
+        return strategy.sort(schedules, LocalDateTime.now())
+            .stream()
+            .map(ScheduleDto::from)
+            .toList();
+    }
+}
+```
+
+Service가 깔끔해졌다. 정렬이 어떻게 동작하는지 모른다. 그냥 "전략을 받아서 실행"할 뿐이다.
+
+## 새 정렬 방식 추가 시
+
+"최근 수정순"이 필요하면?
+
+<Steps>
+  <Step title="전략 구현체 추가">
+    `RecentlyModifiedSortingStrategy` 클래스를 하나 만든다.
+  </Step>
+  <Step title="Factory에 등록">
+    `getStrategy()`의 switch에 case 하나 추가한다.
+  </Step>
+  <Step title="끝">
+    UseCase, Service, Controller는 수정할 필요 없다.
+  </Step>
+</Steps>
+
+기존 코드를 수정하지 않고 새 기능을 추가했다. Open/Closed Principle이 작동하는 순간이다.
+
+## 같은 패턴의 다른 적용: TemplateMapper
+
+정렬 패턴이 잘 동작하길래, 비슷한 문제가 있는 곳에도 적용했다. 메시지 템플릿에서 플레이스홀더를 치환하는 로직이다. 처음에는 UseCase에서 String.replace를 줄줄이 호출하고 있었다.
+
+```java
+// 이전 — UseCase에 치환 로직이 직접
+String message = template;
+message = message.replace("{#지원자명}", applicant.getName());
+message = message.replace("{#채용명}", posting.getName());
+message = message.replace("{#회사명}", office.getName());
+message = message.replace("{#현재전형}", currentStep.getName());
+// ... 10개가 넘는 플레이스홀더
+```
+
+TemplateMapper로 추출하고, Factory가 상황에 맞는 매핑을 조합하도록 바꿨다.
+
+```java
+public class TemplateMapperFactory {
+
+    public static TemplateMapper createDefaultMapper(
+        final OfficeDto office,
+        final PostingDto posting,
+        final StepDto currentStep,
+        final ApplicantDto applicant
+    ) {
+        final TemplateMapper mapper = new TemplateMapper();
+        mapper.addMapping("{#지원자명}", applicant.getName());
+        mapper.addMapping("{#채용명}", posting.getName());
+        mapper.addMapping("{#회사명}", office.getName());
+        mapper.addMapping("{#현재전형}", currentStep.getName());
+        return mapper;
+    }
+}
+```
+
+```java
+public class TemplateMapper {
+
+    private final Map<String, String> mappings = new HashMap<>();
+
+    public void addMapping(final String placeholder, final String value) {
+        mappings.put(placeholder, value);
+    }
+
+    public String apply(final String template) {
+        String result = template;
+        for (final Map.Entry<String, String> entry : mappings.entrySet()) {
+            result = result.replace(entry.getKey(), entry.getValue());
+        }
+        return result;
+    }
+}
+```
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Template Mapping Flow</p>
+
+  <div style={{display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap'}}>
+    <div style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.6rem 1rem'}}>
+      <div style={{color: '#8b949e', fontSize: '0.7rem'}}>템플릿</div>
+      <div style={{color: '#e6edf3', fontSize: '0.8rem'}}>{`"{#지원자명}님, {#채용명}에..."`}</div>
+    </div>
+    <div style={{color: '#475569', fontSize: '1rem'}}>→</div>
+    <div style={{background: '#0f0a28', border: '1px solid #7c3aed', borderRadius: '8px', padding: '0.6rem 1rem'}}>
+      <div style={{color: '#a78bfa', fontSize: '0.7rem'}}>TemplateMapper</div>
+      <div style={{color: '#c4b5fd', fontSize: '0.8rem'}}>placeholder 치환</div>
+    </div>
+    <div style={{color: '#475569', fontSize: '1rem'}}>→</div>
+    <div style={{background: '#0a1a14', border: '1px solid #059669', borderRadius: '8px', padding: '0.6rem 1rem'}}>
+      <div style={{color: '#34d399', fontSize: '0.7rem'}}>결과</div>
+      <div style={{color: '#6ee7b7', fontSize: '0.8rem'}}>"홍길동님, 백엔드 개발자에..."</div>
+    </div>
+  </div>
+</div>
+
+## 과설계 경계선
+
+패턴이 잘 먹히니까 모든 분기에 Strategy를 적용하고 싶은 유혹이 온다. 하지만 한 가지 기준을 세웠다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
+    <div style={{background: '#0a1a14', border: '1px solid #065f46', borderRadius: '8px', padding: '1rem'}}>
+      <div style={{color: '#34d399', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem'}}>적용하는 경우</div>
+      <div style={{color: '#8b949e', fontSize: '0.75rem', lineHeight: 1.6}}>같은 인터페이스를 가진 2개 이상의 구현이 존재하고, 새 구현이 추가될 가능성이 있을 때</div>
+    </div>
+    <div style={{background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '1rem'}}>
+      <div style={{color: '#ef4444', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem'}}>적용하지 않는 경우</div>
+      <div style={{color: '#8b949e', fontSize: '0.75rem', lineHeight: 1.6}}>구현이 하나뿐이고 추가 가능성이 없다면, 직접 호출이 더 간결하다. 패턴을 위한 패턴은 과설계다.</div>
+    </div>
+  </div>
+</div>
+
+돌이켜보면 정렬 방식이 2개일 때 바로 패턴을 적용했어도 됐지만, 그때는 "if-else 2개인데 뭘 과하게 분리하나"라고 생각했다. 3개째가 추가되는 순간 "아, 이건 계속 늘어나겠구나"라는 감이 왔고, 그때 분리한 타이밍이 딱 맞았다. 너무 빨리 추상화하면 불필요한 복잡성이 생기고, 너무 늦으면 리팩토링 비용이 커진다. 3개째가 그 경계선이었다.

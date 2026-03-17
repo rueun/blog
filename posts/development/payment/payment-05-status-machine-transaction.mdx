@@ -1,0 +1,176 @@
+---
+title: "주문/결제 이중 상태 머신과 트랜잭션 분리 전략"
+date: 2025-05-05
+description: "OrderStatus 5개로 시작했다가 환불 요구사항에 8개로 늘리고, PG 승인-주문 상태 불일치 사고를 겪은 뒤 트랜잭션을 분리한 이야기"
+summary: "결제 실패해도 주문 상태는 기록되어야 한다 — 이중 상태 머신과 트랜잭션 분리의 실전"
+series: "실전 결제 시스템 구현기"
+categories:
+  - Development
+  - Payment
+tags:
+  - Payment
+  - State Machine
+  - Transaction
+  - Spring Boot
+---
+
+결제 시스템에서 가장 까다로웠던 건 **두 개의 상태를 동시에 관리하는 것**이었다. 주문(Order)과 결제(Payment)는 각각 독립적인 상태 머신을 가지면서도, 서로 동기화되어야 한다.
+
+## 처음에는 상태가 5개였다
+
+초기 요구사항은 단순했다. 결제하고, 실패하면 재시도하고, 취소할 수 있으면 됐다.
+
+```java
+// 처음 OrderStatus
+public enum OrderStatus {
+    PENDING,           // 결제 대기
+    PAID,              // 결제 완료
+    FAILED,            // 결제 실패
+    CANCEL_REQUESTED,  // 취소 요청
+    CANCELED           // 취소 완료
+}
+```
+
+그러다가 "부분 환불"이라는 요구사항이 왔다. 상품 A와 B를 같이 주문했는데, A만 환불하고 싶은 경우. 그리고 "환불 요청 상태"도 필요했다. PG사에 환불 요청을 보내고 처리될 때까지의 중간 상태.
+
+```java
+// 현재 OrderStatus — 8개로 늘어남
+public enum OrderStatus {
+    PENDING,
+    PAID,
+    FAILED,
+    CANCEL_REQUESTED,
+    CANCELED,
+    REFUNDED_REQUEST,       // 환불 요청
+    PARTIALLY_REFUNDED,     // 부분 환불
+    REFUNDED                // 전액 환불
+}
+```
+
+상태가 8개가 되면서 "어떤 상태에서 어떤 상태로 갈 수 있는가?"를 관리하는 게 급격히 복잡해졌다. Service에 if-else를 넣다가는 스파게티가 될 게 분명했다.
+
+## 상태 전이 테이블을 Enum에 가두다
+
+```java
+@Getter
+@RequiredArgsConstructor
+public enum OrderStatus {
+    PENDING("결제 대기"),
+    PAID("결제 완료"),
+    FAILED("결제 실패"),
+    CANCEL_REQUESTED("취소 요청"),
+    CANCELED("취소 완료"),
+    REFUNDED_REQUEST("환불 요청"),
+    PARTIALLY_REFUNDED("부분 환불"),
+    REFUNDED("전액 환불");
+
+    private final String description;
+
+    private static final Map<OrderStatus, Set<OrderStatus>> TRANSITIONS = Map.of(
+        PENDING, Set.of(PAID, FAILED),
+        FAILED, Set.of(PENDING, PAID),
+        PAID, Set.of(CANCEL_REQUESTED, REFUNDED_REQUEST),
+        CANCEL_REQUESTED, Set.of(CANCELED, PAID),
+        CANCELED, Set.of(),
+        REFUNDED_REQUEST, Set.of(PARTIALLY_REFUNDED, REFUNDED),
+        PARTIALLY_REFUNDED, Set.of(REFUNDED_REQUEST, REFUNDED),
+        REFUNDED, Set.of()
+    );
+
+    public boolean canTransitionTo(final OrderStatus target) {
+        return TRANSITIONS.getOrDefault(this, Set.of()).contains(target);
+    }
+
+    public boolean isPayable() {
+        return this == PENDING || this == FAILED;
+    }
+
+    public boolean isRefundable() {
+        return this == PAID || this == PARTIALLY_REFUNDED;
+    }
+}
+```
+
+몇 가지 전이를 허용한 이유가 있다.
+
+**FAILED → PENDING**: 결제 실패 후 다른 카드로 재시도하고 싶을 때. FAILED를 최종 상태로 만들면 사용자가 주문을 처음부터 다시 만들어야 해서 UX가 나빠진다.
+
+**CANCEL_REQUESTED → PAID**: PG사에 취소 요청을 보냈는데 실패하는 경우가 있다. 이때 주문을 다시 PAID로 돌려놓아야 한다.
+
+**PARTIALLY_REFUNDED → REFUNDED_REQUEST**: 부분 환불 후 나머지도 환불 요청하는 경우.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>시나리오별 상태 흐름</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.4rem'}}>
+    {[
+      {scenario: '정상 결제', flow: 'PENDING → PAID', color: '#34d399'},
+      {scenario: '실패 후 재시도', flow: 'PENDING → FAILED → PENDING → PAID', color: '#38bdf8'},
+      {scenario: '전체 취소', flow: 'PAID → CANCEL_REQUESTED → CANCELED', color: '#f59e0b'},
+      {scenario: '부분 환불', flow: 'PAID → REFUNDED_REQUEST → PARTIALLY_REFUNDED', color: '#a78bfa'},
+      {scenario: '부분 → 전액 환불', flow: 'PARTIALLY_REFUNDED → REFUNDED_REQUEST → REFUNDED', color: '#a78bfa'},
+      {scenario: '취소 실패', flow: 'PAID → CANCEL_REQUESTED → PAID (복귀)', color: '#ef4444'},
+    ].map(({scenario, flow, color}) => (
+      <div key={scenario} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+        <span style={{color: color, fontWeight: 600, fontSize: '0.8rem', minWidth: '120px'}}>{scenario}</span>
+        <span style={{color: '#8b949e', fontSize: '0.75rem', fontFamily: 'monospace'}}>{flow}</span>
+      </div>
+    ))}
+  </div>
+</div>
+
+## PG 승인 — 주문 상태 불일치 사고
+
+운영 초기에 한 번 겪은 사고가 있다. **Toss에서 결제 승인은 됐는데, 주문 상태가 PENDING으로 남아있는 건.**
+
+원인을 추적해보니 이런 상황이었다. `ConfirmPaymentUseCase`에서 Toss API 호출 → 성공 → 주문 상태 업데이트 → 장바구니 상태 변경 순서로 처리하고 있었는데, **장바구니 상태 변경에서 예외가 터졌다.** 전체가 하나의 트랜잭션이었으므로 주문 상태 업데이트까지 롤백됐다.
+
+돈은 빠져나갔는데 주문이 없는 상태. 고객에게 수동으로 환불 처리해야 했다.
+
+## 비관적 락 — 동시 결제 방지
+
+또 다른 문제도 있었다. 동일 주문에 대해 결제 요청이 거의 동시에 2번 들어온 적이 있다. 네트워크 지연으로 사용자가 결제 버튼을 두 번 누른 것 같다. 두 요청 모두 `isPayable()` 체크를 통과해서 Toss에 2번 결제 요청이 갔다.
+
+다행히 Toss에서 `ALREADY_PROCESSED_PAYMENT` 에러로 두 번째 요청을 막아줬지만, 우리 시스템에서 먼저 막았어야 했다.
+
+```java
+// 비관적 락으로 동시 결제 방지
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+@Query("SELECT o FROM OrderEntity o WHERE o.orderNumber = :orderNumber")
+Optional<OrderEntity> findByOrderNumberWithLock(@Param("orderNumber") String orderNumber);
+```
+
+비관적 락을 걸면 첫 번째 트랜잭션이 주문을 잡고 있는 동안 두 번째 트랜잭션은 대기한다. 첫 번째가 PAID로 바꾸고 커밋하면, 두 번째가 읽을 때 이미 PAID 상태이므로 `isPayable()` 검증에서 걸린다.
+
+<Callout type="tip" title="낙관적 락을 쓰지 않은 이유">
+낙관적 락(@Version)은 충돌 시 재시도 로직이 필요하다. 결제에서 재시도는 PG사에 중복 결제 요청이 갈 수 있어서 위험하다. 비관적 락으로 선점한 트랜잭션만 진행하는 게 더 안전했다.
+</Callout>
+
+## PaymentCompletedEvent — 결제 완료 도메인 이벤트
+
+결제가 완료되면 장바구니 아이템 상태를 `ORDERED`로 바꿔야 한다. 이걸 결제 서비스에서 직접 호출하면 Order → Cart 의존성이 생긴다. 도메인 이벤트로 분리했다.
+
+```java
+// 결제 완료 시 이벤트 발행
+eventPublisher.publishEvent(new PaymentCompletedEvent(savedOrder));
+
+// Cart 쪽 리스너
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void handlePaymentCompleted(final PaymentCompletedEvent event) {
+    cartService.markAsOrdered(event.getOrder().getCartItemIds());
+}
+```
+
+`AFTER_COMMIT`을 사용한 이유: 장바구니 상태 변경이 실패해도 결제는 이미 완료된 상태여야 한다. 처음에 발생했던 사고(장바구니 실패 → 결제 롤백)를 반복하지 않기 위해서다.
+
+## 시리즈를 마치며
+
+5편에 걸쳐 결제 시스템을 다뤘다. 각 편에서 배운 핵심을 정리하면:
+
+1. **2단계 주문 모델**: 생명주기가 다른 데이터는 테이블을 나눠야 한다. PENDING 주문이 쌓이는 문제를 근본적으로 해결.
+2. **Domain/Entity 분리**: 결제처럼 비즈니스 규칙이 복잡한 도메인은 JPA에서 해방시켜야 테스트와 설계가 자유롭다.
+3. **3계층 PG 연동**: UseCase → Service → Client로 관심사를 분리하면 에러 처리와 테스트가 깨끗해진다.
+4. **PaymentEvent 소싱**: 현재 상태만이 아니라 과정을 기록해야 디버깅과 CS 대응이 가능하다.
+5. **이중 상태 머신**: Order와 Payment의 상태를 독립적으로 관리하되, 전이 규칙을 Enum에 가두면 런타임 버그를 줄일 수 있다.
+
+결제는 "동작하는 코드"만으로는 부족하다. **실패해도 데이터가 일관된 코드**, **장애 시에도 추적 가능한 코드**가 되어야 한다. 대부분의 교훈은 사고를 겪은 뒤에 얻었다.

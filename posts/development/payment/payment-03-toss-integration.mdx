@@ -1,0 +1,293 @@
+---
+title: "Toss Payments 연동: 3계층 구조와 에러 처리 전략"
+date: 2025-04-21
+description: "PG 연동 코드를 UseCase에 직접 넣었다가 테스트 불가능해진 뒤, 3계층으로 분리하고 에러 처리를 체계화한 이야기"
+summary: "UseCase → Service → Client 3계층으로 PG 연동을 설계하고, 결제 수단별 인증과 에러를 체계적으로 처리하는 방법"
+series: "실전 결제 시스템 구현기"
+categories:
+  - Development
+  - Payment
+tags:
+  - Payment
+  - Toss Payments
+  - Clean Architecture
+  - Spring Boot
+---
+
+Toss Payments를 연동할 때 가장 먼저 한 실수가 있다. UseCase에서 RestTemplate을 직접 호출한 것이다.
+
+## 처음에는 UseCase에서 직접 호출했다
+
+빠르게 동작을 확인하고 싶어서, `ConfirmPaymentUseCase`에 Toss API 호출 코드를 바로 넣었다.
+
+```java
+// 처음 코드 — UseCase에 외부 API 호출이 섞임
+@Service
+public class ConfirmPaymentUseCase {
+
+    private final RestTemplate restTemplate;
+    private final OrderService orderService;
+
+    @Transactional
+    public ConfirmPaymentResponse execute(final ConfirmPaymentCriteria criteria) {
+        final Order order = orderService.validatePayable(
+            criteria.getOrderNumber(), criteria.getAmount()
+        );
+
+        // Toss API 직접 호출
+        final HttpHeaders headers = new HttpHeaders();
+        final String encoded = Base64.getEncoder()
+            .encodeToString(("test_sk_xxx:").getBytes());
+        headers.set("Authorization", "Basic " + encoded);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        final TossConfirmRequest tossRequest = new TossConfirmRequest(
+            criteria.getPaymentKey(), criteria.getOrderNumber(), criteria.getAmount()
+        );
+
+        try {
+            final ResponseEntity<TossPaymentsResponse> response = restTemplate.exchange(
+                "https://api.tosspayments.com/v1/payments/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(tossRequest, headers),
+                TossPaymentsResponse.class
+            );
+            // 결제 성공 처리...
+        } catch (final HttpClientErrorException e) {
+            // 에러 처리...
+        }
+    }
+}
+```
+
+동작은 했다. 하지만 문제가 세 가지 있었다.
+
+**첫째, 테스트할 수 없었다.** UseCase를 테스트하려면 Toss API를 실제로 호출해야 했다. 테스트 환경에서 결제를 매번 할 수는 없으니까 WireMock을 써야 했는데, 비즈니스 로직 검증에 HTTP 목업까지 신경쓰는 건 과했다.
+
+**둘째, 인증 키가 하드코딩됐다.** Toss Payments는 신용카드와 키인 결제에 서로 다른 Secret Key를 사용한다. UseCase에서 결제 수단마다 if-else로 키를 바꾸기 시작하면 코드가 금방 복잡해진다.
+
+**셋째, 에러 처리가 중구난방이었다.** 4xx와 5xx를 같은 catch 블록에서 처리하고 있었고, Toss가 보내주는 에러 코드(`ALREADY_PROCESSED_PAYMENT`, `INVALID_PAYMENT_AMOUNT` 등)를 우리 에러 코드로 매핑하는 로직이 UseCase에 섞여 있었다.
+
+## 3계층으로 분리한 이유
+
+한 발 물러서서 생각해봤다. PG사 연동에서 관심사가 몇 개인가?
+
+1. **비즈니스 오케스트레이션**: 주문 검증 → 결제 생성 → PG 호출 → 결과 저장
+2. **PG 비즈니스 로직**: 결제 승인, 조회, 취소 (Toss의 API 스펙에 맞는 요청/응답 조합)
+3. **HTTP 통신**: 인증 헤더, 에러 파싱, RestTemplate 설정
+
+관심사가 3개니까 계층도 3개로.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Payment Integration — 3 Layers</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem', maxWidth: '500px', margin: '0 auto'}}>
+    {[
+      {name: 'ConfirmPaymentUseCase', desc: '"검증하고, 결제 만들고, PG 부르고, 결과 저장해"', color: '#a78bfa', border: '#7c3aed'},
+      {name: 'TossPaymentsService', desc: '"Toss API 스펙에 맞게 요청을 조합해"', color: '#38bdf8', border: '#1d4ed8'},
+      {name: 'TossPaymentsClient', desc: '"HTTP 보내고, 인증 붙이고, 에러 파싱해"', color: '#34d399', border: '#059669'},
+    ].map(({name, desc, color, border}, i) => (
+      <div key={i}>
+        {i > 0 && <div style={{textAlign: 'center', color: '#30363d', fontSize: '0.75rem', padding: '0.1rem'}}>↓</div>}
+        <div style={{background: '#161b22', border: `1px solid ${border}`, borderRadius: '8px', padding: '0.75rem 1rem'}}>
+          <div style={{color: color, fontWeight: 600, fontSize: '0.85rem'}}>{name}</div>
+          <div style={{color: '#8b949e', fontSize: '0.75rem', marginTop: '0.25rem'}}>{desc}</div>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+## ConfirmPaymentUseCase — 실패해도 기록은 남긴다
+
+분리 후 UseCase가 깨끗해졌다. HTTP 호출, 인증, 에러 파싱을 전혀 모른다.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class ConfirmPaymentUseCase {
+
+    private final OrderService orderService;
+    private final PaymentInitService paymentInitService;
+    private final PaymentResultSaver paymentResultSaver;
+    private final TossPaymentsService tossPaymentsService;
+
+    @Transactional
+    public ConfirmPaymentResponse execute(final ConfirmPaymentCriteria criteria) {
+        // ① 주문이 결제 가능한지 검증
+        final Order order = orderService.validatePayable(
+            criteria.getOrderNumber(), criteria.getAmount()
+        );
+
+        // ② PG 호출 전에 대기 상태 결제를 먼저 생성
+        final Payment pendingPayment = paymentInitService.createPending(
+            criteria.toInitCommand(order)
+        );
+
+        try {
+            // ③ Toss Payments API 호출
+            final TossPaymentsResponse pgResponse = tossPaymentsService.confirm(
+                criteria.toTossRequest()
+            );
+
+            // ④ 성공 → 주문/결제 상태 업데이트
+            return paymentResultSaver.saveSuccess(order, pendingPayment, pgResponse);
+
+        } catch (final Exception e) {
+            // ⑤ 실패해도 실패 사실을 기록
+            paymentResultSaver.saveFailure(order, pendingPayment, e);
+            throw e;
+        }
+    }
+}
+```
+
+try-catch로 감싼 이유가 있다. 처음에는 없었는데, **PG 호출이 실패하면 Payment 레코드가 PENDING 상태로 남아있는 문제**가 생겼다. "이 결제는 왜 PENDING인 채로 멈춰있지?"를 나중에 추적할 수 없었다. catch에서 `saveFailure()`를 호출하면 FAILED 상태 + 에러 코드가 기록되어 원인을 바로 파악할 수 있다.
+
+<Callout type="warning" title="catch 후 throw를 다시 하는 이유">
+`saveFailure()`로 실패를 기록한 뒤 예외를 다시 던진다. 예외를 삼키면 클라이언트가 결제 실패를 모르고 "로딩 중..."으로 멈춰있게 된다. 기록은 서버에서, 에러 응답은 클라이언트에게.
+</Callout>
+
+## TossPaymentsClient — 에러 처리에서 배운 것
+
+PG사 에러는 종류에 따라 대응이 완전히 다르다. 이걸 처음에는 구분하지 못했다.
+
+처음에는 모든 예외를 `catch (Exception e)`로 잡아서 "결제 실패"라고만 했다. 그랬더니 고객 문의가 왔을 때 **"왜 실패했는가"를 알 수 없었다.** 카드 한도 초과인지, PG사 장애인지, 네트워크 타임아웃인지.
+
+그래서 에러를 3계층으로 나눴다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Error Handling — 실패 원인별 대응</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem'}}>
+    {[
+      {name: '4xx Client Error', example: '잔액 부족, 중복 결제, 만료된 키', action: '사용자에게 구체적 안내 → "카드 잔액을 확인해주세요"', color: '#f59e0b'},
+      {name: '5xx Server Error', example: 'Toss 서버 장애', action: '잠시 후 재시도 유도 + 모니터링 알림 발송', color: '#ef4444'},
+      {name: 'Unknown Error', example: '타임아웃, DNS 실패', action: '결제 상태 불명 → PG 조회 API로 보정 필요', color: '#8b949e'},
+    ].map(({name, example, action, color}) => (
+      <div key={name} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: color, fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.5rem'}}>{name}</div>
+        <div style={{color: '#8b949e', fontSize: '0.7rem', lineHeight: 1.5, marginBottom: '0.5rem'}}>{example}</div>
+        <div style={{color: '#e6edf3', fontSize: '0.7rem', lineHeight: 1.5}}>{action}</div>
+      </div>
+    ))}
+  </div>
+</div>
+
+```java
+@Component
+@Slf4j
+public class TossPaymentsClient {
+
+    private <T> T sendRequest(
+        final String url,
+        final HttpMethod method,
+        final Object body,
+        final Class<T> responseType,
+        final RestTemplate restTemplate
+    ) {
+        try {
+            final ResponseEntity<T> response = restTemplate.exchange(
+                url, method, new HttpEntity<>(body), responseType
+            );
+            return response.getBody();
+
+        } catch (final HttpClientErrorException e) {
+            // 4xx — Toss가 보내주는 에러 코드를 우리 코드로 매핑
+            final TossErrorResponse error = parseError(e.getResponseBodyAsString());
+            log.error("Toss 4xx: code={}, message={}", error.getCode(), error.getMessage());
+            throw new TossPaymentsException(error.getCode(), error.getMessage());
+
+        } catch (final HttpServerErrorException e) {
+            // 5xx — PG사 서버 문제. 우리가 할 수 있는 건 없다
+            log.error("Toss 5xx: status={}", e.getStatusCode());
+            throw new ExternalApiException(ExternalErrorType.SERVER_ERROR);
+
+        } catch (final Exception e) {
+            // Unknown — 네트워크 장애. 가장 위험한 케이스
+            log.error("Toss unknown error", e);
+            throw new ExternalApiException(ExternalErrorType.UNKNOWN_ERROR);
+        }
+    }
+}
+```
+
+<Callout type="error" title="Unknown Error가 가장 무서운 이유">
+타임아웃이 발생하면 **결제가 실제로 승인됐는지 알 수 없다**. 고객 카드에서 돈은 빠져나갔는데 우리 시스템에서는 실패 처리한 적이 있다. 그 뒤로 Unknown Error가 발생하면 반드시 Toss 결제 조회 API(`GET /v1/payments/{paymentKey}`)로 실제 상태를 확인하는 보정 로직을 추가했다.
+</Callout>
+
+## 두 개의 RestTemplate — 예상 못한 요구사항
+
+Toss Payments 연동을 거의 마무리했을 때 기획에서 "키인 결제도 지원해야 합니다"라는 요청이 왔다. 키인 결제는 카드 번호를 직접 입력하는 방식인데, **Secret Key가 다르다.** 같은 API 엔드포인트인데 인증만 다른 상황.
+
+처음에는 `if (method == KEY_IN) { secretKey = keyInKey; }` 같은 분기를 넣었다. 그런데 이러면 RestTemplate의 인증 인터셉터를 매번 동적으로 바꿔야 한다. 깔끔하지 않았다.
+
+결국 RestTemplate을 2개 만들기로 했다.
+
+```java
+@Configuration
+@RequiredArgsConstructor
+public class TossPaymentsRestTemplateConfig {
+
+    private final TossPaymentsProps props;
+
+    @Bean
+    public RestTemplate tossPaymentsRestTemplate() {
+        return createRestTemplate(props.getSecretKey());
+    }
+
+    @Bean
+    public RestTemplate tossPaymentKeyInRestTemplate() {
+        return createRestTemplate(props.getKeyInSecretKey());
+    }
+
+    private RestTemplate createRestTemplate(final String secretKey) {
+        final RestTemplate restTemplate = new RestTemplate();
+        restTemplate.getInterceptors().add((request, body, execution) -> {
+            final String encoded = Base64.getEncoder()
+                .encodeToString((secretKey + ":").getBytes());
+            request.getHeaders().set("Authorization", "Basic " + encoded);
+            request.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+            return execution.execute(request, body);
+        });
+        return restTemplate;
+    }
+}
+```
+
+`TossPaymentsClient`가 결제 수단에 따라 적절한 RestTemplate을 선택해서 사용한다. 인증 로직이 인터셉터에 캡슐화되어 있으니, Client 코드에 if-else가 없다.
+
+## TossPaymentsService — Client와 UseCase 사이의 완충제
+
+처음에는 "Service 계층이 꼭 필요한가?"라고 생각했다. Client가 바로 HTTP를 호출하는데, 중간에 한 계층이 더 필요할까?
+
+필요했다. Toss API의 결제 승인 결과에서 카드 정보를 뽑아내고, 우리 도메인 모델(`PaymentDetail`)로 변환하는 로직이 생겼기 때문이다. 이건 HTTP 통신의 관심사가 아니고, 비즈니스 오케스트레이션의 관심사도 아니다. "Toss 응답을 우리 도메인으로 변환하는" 중간 레벨의 관심사다.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class TossPaymentsService {
+
+    private final TossPaymentsClient client;
+    private final TossPaymentDetailMapper detailMapper;
+
+    public TossPaymentsResponse confirm(final TossConfirmRequest request) {
+        return client.confirmPayment(request);
+    }
+
+    public PaymentDetail getPaymentDetail(final String paymentKey) {
+        final TossPaymentsResponse response = client.getPayment(paymentKey);
+        return detailMapper.toPaymentDetail(response);
+    }
+
+    public void cancel(final String paymentKey, final TossCancelRequest request) {
+        client.cancelPayment(paymentKey, request);
+    }
+}
+```
+
+만약 Toss에서 다른 PG사로 바꾸게 되면? `TossPaymentsService`와 `TossPaymentsClient`를 새 PG사용으로 교체하면 된다. `ConfirmPaymentUseCase`는 `TossPaymentsService`의 인터페이스만 바라보고 있으니 한 줄도 수정할 필요 없다.
+
+실제로 PG사를 교체한 적은 없다. 하지만 **테스트에서 TossPaymentsService를 Mock으로 교체하는 건 매일 하고 있다.** 인터페이스로 분리한 가장 현실적인 이점이다.
+
+다음 편에서는 결제의 모든 상태 변화를 기록하는 **PaymentEvent 이벤트 소싱** 패턴과, 결제 수단별 정보를 타입 안전하게 관리하는 **PaymentDetail 다형성**을 이야기한다.

@@ -1,0 +1,217 @@
+---
+title: "80줄짜리 UseCase를 15줄로 줄인 이야기 — 도메인 이벤트 도출기"
+date: 2024-09-09
+description: "지원자 등록 UseCase가 비대해지면서 겪은 문제와, 도메인 이벤트로 부수효과를 분리하기까지의 과정"
+summary: "5가지 부수효과가 뒤엉킨 UseCase를 도메인 이벤트로 풀어낸 경험담"
+series: "도메인 이벤트로 Aggregate 간 느슨한 결합 만들기"
+categories:
+  - Development
+  - DDD
+tags:
+  - Domain Driven Design
+  - Domain Event
+  - Spring Boot
+  - Java
+---
+
+ATS(채용 관리 시스템)를 만들면서 가장 먼저 터진 곳은 `RegisterApplicantUseCase`였다.
+
+처음에는 심플했다. 지원자가 온라인으로 지원하면 DB에 저장하고 끝. 10줄도 안 되는 깔끔한 코드였다. 그런데 요구사항이 하나씩 추가되기 시작했다.
+
+"같은 이름이랑 전화번호로 지원한 사람 있으면 중복 표시해주세요." 코드 5줄 추가. "지원 완료되면 지원자한테 확인 이메일 보내주세요." 10줄 추가. "관리자한테도 알림 이메일 보내야 해요." 또 10줄. "검색 성능 때문에 ApplicantMeta도 같이 만들어야 합니다." 15줄 추가. "아, 지원자 수 통계도 채용 공고에 반영해야 해요."
+
+## 80줄의 늪
+
+어느 날 PR 리뷰를 하다가 `RegisterApplicantUseCase`를 열어봤다. 80줄이 넘었다. 한 메서드에 5가지 일이 뒤엉켜 있었다.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class RegisterApplicantUseCase {
+    private final StepService stepService;
+    private final ApplicantService applicantService;
+    private final ApplicantMetaService applicantMetaService;
+    private final SendApplicationSuccessEmailUseCase sendEmailUseCase;
+    private final ApplicationEmailHistoryService emailHistoryService;
+
+    @Transactional
+    public ApplicantWithAnswerDto registerApplicant(
+        final String officeId,
+        final String postingId,
+        final RegisterApplicantCommand command
+    ) {
+        // 1. 핵심 로직: 지원자 생성
+        final StepDto step = stepService.getFirstStepByPostingId(postingId);
+        final ApplicantWithAnswerDto applicant = applicantService.createApplicant(
+            postingId, step.getId(), command
+        );
+
+        // 2. 중복 체크 (이게 여기 있어야 하나?)
+        applicantService.updateDuplicated(postingId, applicant.getName(), applicant.getPhoneNumber());
+
+        // 3. Meta 생성 (검색 최적화용... 이것도?)
+        applicantMetaService.createApplicantSummary(
+            CreateApplicantMetaCommand.of(applicant)
+        );
+
+        // 4. 이메일 발송 (외부 시스템 호출을 트랜잭션 안에서?)
+        sendEmailUseCase.sendToApplicant(officeId, postingId, applicant.getId());
+        sendEmailUseCase.sendToPosingAdminMember(officeId, postingId, applicant);
+
+        // 5. 이메일 히스토리... 6. 지원자 수 통계 업데이트...
+        // ... 계속 늘어남
+        return applicant;
+    }
+}
+```
+
+문제는 세 가지였다.
+
+첫째, **모든 부수효과가 같은 트랜잭션** 안에 있었다. 이메일 서버가 3초 응답 지연을 일으키면 지원자는 3초를 기다려야 했다. SMTP 서버가 죽으면? 지원 자체가 실패했다. "결제했는데 주문이 안 보여요" 같은 상황이 "지원했는데 지원이 안 됐어요"로 벌어질 뻔했다.
+
+둘째, **새 요구사항이 올 때마다 이 메서드를 수정**해야 했다. Slack 알림 추가? 여기에 코드 추가. 카카오 알림톡? 또 여기. OCP(Open/Closed Principle)의 정반대였다.
+
+셋째, **테스트가 지옥**이었다. UseCase 하나를 테스트하려면 5개 서비스를 모킹해야 했다. 중복 체크 로직만 테스트하고 싶은데 이메일 서비스까지 셋업해야 했다.
+
+## "이건 이벤트로 풀어야 한다"
+
+리팩토링을 결심하고, 먼저 어떤 것을 이벤트로 분리할지 기준을 세웠다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>이벤트로 분리할지 판단하는 4가지 질문</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem'}}>
+    {[
+      {name: '비즈니스 의미가 있는가?', desc: '"지원자가 지원했다"는 비즈니스 사실이다. "DB에 row를 insert했다"는 기술적 사실이라 이벤트가 아니다.', color: '#a78bfa'},
+      {name: '다른 Aggregate가 반응해야 하는가?', desc: '중복 체크, Meta 생성, 이메일 발송 — 모두 지원자 생성이라는 사실에 반응하는 것들이다.', color: '#38bdf8'},
+      {name: '실패해도 메인 로직은 성공해야 하는가?', desc: '이메일 서버가 죽었다고 지원이 안 되면 안 된다. 이런 건 이벤트로 분리해야 한다.', color: '#34d399'},
+      {name: '즉시 응답에 포함될 필요가 없는가?', desc: '지원 응답에 "중복 여부"나 "이메일 발송 결과"가 포함될 필요는 없다.', color: '#f59e0b'},
+    ].map(({name, desc, color}) => (
+      <div key={name} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: color, fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem'}}>{name}</div>
+        <div style={{color: '#8b949e', fontSize: '0.75rem', lineHeight: 1.5}}>{desc}</div>
+      </div>
+    ))}
+  </div>
+</div>
+
+4개 질문에 모두 "예"라면 이벤트 후보다. "아니오"가 하나라도 있으면 UseCase에 직접 둔다. 이 기준으로 걸러보니 중복 체크, 이메일, Meta, 통계, 알림톡 — 전부 이벤트 대상이었다. UseCase에 남아야 할 코드는 "지원자를 생성하고 이벤트를 발행하는 것" 뿐이었다.
+
+## 이벤트 이름을 짓는 데 3일 걸렸다
+
+처음에 `ApplicantCreatedEvent`라고 지었다. 그런데 "지원자가 온라인으로 지원한 것"과 "관리자가 직접 등록한 것"은 비즈니스적으로 다른 행위다. 온라인 지원은 확인 이메일을 보내야 하고, 직접 등록은 보내면 안 된다. 일괄 등록은 Meta만 만들면 된다.
+
+하나의 이벤트에 `type` 필드를 넣어서 분기하는 방안도 고민했다.
+
+```java
+// 버린 설계: 하나의 이벤트 + type 분기
+public class ApplicantCreatedEvent {
+    private final CreationType type; // APPLIED, REGISTERED, BULK_REGISTERED
+    private final ApplicantWithAnswerDto applicant;
+}
+
+// 리스너에서 if-else 지옥이 펼쳐진다
+if (event.getType() == APPLIED) {
+    // 이메일 보내고, 중복 체크하고...
+} else if (event.getType() == REGISTERED) {
+    // 중복 체크만...
+}
+```
+
+리스너마다 `if-else`가 들어가는 게 마음에 안 들었다. 이벤트를 분리하면 리스너는 자기가 관심 있는 이벤트만 구독하면 된다.
+
+```java
+// 최종 결정: 이벤트를 나누자
+ApplicantAppliedEvent         // 온라인 지원 → 이메일 + 중복 체크 + Meta
+SingleApplicantRegisteredEvent // 직접 등록 → 중복 체크 + Meta
+ApplicantBulkRegisteredEvent   // 일괄 등록 → Meta만
+ApplicantDeletedEvent          // 삭제 → 중복 재계산 + Meta 삭제 + 히스토리 삭제
+```
+
+이벤트명은 전부 **과거형**으로 통일했다. `ApplicantApplyEvent`가 아니라 `ApplicantAppliedEvent`다. 이벤트는 "이미 일어난 사실"을 나타내기 때문이다. `Applied`, `Registered`, `Deleted`, `Moved`, `Rejected` — 전부 과거분사다.
+
+## "이벤트에 ID만 넣을까, 전체 데이터를 넣을까?"
+
+여기서 팀 내 토론이 있었다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
+    <div>
+      <div style={{color: '#38bdf8', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem'}}>안 A: ID만 전달</div>
+      <div style={{background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: '#93c5fd', fontSize: '0.8rem', lineHeight: 1.6}}>이벤트가 가볍다</div>
+        <div style={{color: '#93c5fd', fontSize: '0.8rem', lineHeight: 1.6}}>리스너가 항상 최신 데이터를 조회</div>
+        <div style={{color: '#fca5a5', fontSize: '0.8rem', lineHeight: 1.6}}>리스너마다 DB 조회 → N+1 문제</div>
+        <div style={{color: '#fca5a5', fontSize: '0.8rem', lineHeight: 1.6}}>@Async면 트랜잭션 밖에서 조회해야 함</div>
+      </div>
+    </div>
+    <div>
+      <div style={{color: '#a78bfa', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem'}}>안 B: 필요한 데이터 포함 (우리 선택)</div>
+      <div style={{background: '#0f0a28', border: '1px solid #7c3aed', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: '#c4b5fd', fontSize: '0.8rem', lineHeight: 1.6}}>리스너가 추가 조회 불필요</div>
+        <div style={{color: '#c4b5fd', fontSize: '0.8rem', lineHeight: 1.6}}>이벤트 발행 시점의 스냅샷 제공</div>
+        <div style={{color: '#fca5a5', fontSize: '0.8rem', lineHeight: 1.6}}>이벤트 객체가 커질 수 있음</div>
+        <div style={{color: '#c4b5fd', fontSize: '0.8rem', lineHeight: 1.6}}>하지만 메모리 내 전달이라 비용 미미</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+결정적 이유는 리스너가 `@Async`로 **별도 스레드**에서 동작한다는 점이었다. ID만 전달하면 리스너마다 DB를 한 번씩 더 조회해야 한다. 리스너가 5개면 같은 지원자를 5번 조회하는 셈이다. 우리 이벤트는 Spring의 `ApplicationEventPublisher`로 **같은 JVM 내** 메모리에서 전달되기 때문에, DTO를 통째로 넣어도 성능 비용이 거의 없었다.
+
+실제 이벤트는 이렇게 생겼다.
+
+```java
+@Getter
+@AllArgsConstructor
+public class ApplicantAppliedEvent {
+    private final String officeId;
+    private final String postingId;
+    private final String stepId;
+    private final ApplicantWithAnswerDto applicantWithAnswer;
+}
+```
+
+`ApplicantWithAnswerDto`에 이름, 전화번호, 이메일 등 리스너가 필요로 하는 모든 데이터가 들어 있다. 중복 체크 리스너는 여기서 이름과 전화번호를 꺼내 쓰고, 이메일 리스너는 이메일 주소를 꺼내 쓴다.
+
+## 리팩토링 결과: 80줄 → 15줄
+
+```java
+@Service
+@RequiredArgsConstructor
+public class RegisterApplicantUseCase {
+    private final StepService stepService;
+    private final ApplicantService applicantService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Transactional
+    public ApplicantWithAnswerDto registerApplicant(
+        final String officeId,
+        final String postingId,
+        final RegisterApplicantCommand command
+    ) {
+        final StepDto step = stepService.getFirstStepByPostingId(postingId);
+        final ApplicantWithAnswerDto applicant = applicantService.createApplicant(
+            postingId, step.getId(), command
+        );
+
+        eventPublisher.publishEvent(
+            new ApplicantAppliedEvent(officeId, postingId, step.getId(), applicant)
+        );
+
+        return applicant;
+    }
+}
+```
+
+UseCase는 "지원자를 만들고, 그 사실을 알린다"는 핵심만 남았다. 중복 체크는? 이메일은? Meta는? 전부 리스너가 알아서 한다. 새 부수효과가 추가되면 리스너 하나만 만들면 된다. UseCase는 손대지 않는다.
+
+<Callout type="warning" title="이벤트는 반드시 @Transactional 안에서 발행">
+이벤트는 `@Transactional` 메서드 안에서 발행해야 한다. 트랜잭션 밖에서 발행하면 `@TransactionalEventListener`가 동작하지 않는다. 이걸 모르고 서비스 레이어 밖에서 발행했다가 리스너가 전혀 반응하지 않아서 한참 헤맸다.
+</Callout>
+
+## "근데 이메일 발송 실패하면 어떡하죠?"
+
+리팩토링 후 QA에서 질문이 들어왔다. 좋은 질문이었다. 그리고 이 질문이 다음 편의 주제가 된다 -- **BEFORE_COMMIT vs AFTER_COMMIT**, 어떤 부수효과를 메인 트랜잭션과 묶고, 어떤 걸 분리할 것인가.
+
+다음 편에서는 Meta 생성이 누락되는 버그를 겪고 나서야 이해하게 된 트랜잭션 페이즈 전략을 다룬다.

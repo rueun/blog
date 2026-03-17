@@ -1,0 +1,335 @@
+---
+title: "Domain Model과 JPA Entity를 분리한 이유"
+date: 2025-04-14
+description: "OrderEntity에 비즈니스 로직을 넣었다가 테스트가 지옥이 되어, 도메인 모델을 따로 빼게 된 이야기"
+summary: "JPA Entity에 비즈니스 로직을 넣지 않고, 순수 도메인 모델을 따로 두면 무엇이 달라지는가"
+series: "실전 결제 시스템 구현기"
+categories:
+  - Development
+  - Payment
+tags:
+  - Clean Architecture
+  - Domain Driven Design
+  - JPA
+  - Spring Boot
+---
+
+이전 편에서 임시 주문과 확정 주문을 분리했다. 이번에는 그 과정에서 내린 또 하나의 설계 결정을 이야기한다. **"OrderEntity에 비즈니스 로직을 넣을 것인가, 말 것인가."**
+
+## Entity에 로직을 넣는 게 당연하다고 생각했다
+
+클린 아키텍처 책에도, DDD 책에도 "도메인 객체에 비즈니스 로직을 넣어라"라고 한다. 처음에는 당연히 `OrderEntity`에 결제 완료, 상태 전이, 금액 검증 로직을 넣었다.
+
+```java
+// 처음 코드 — Entity에 비즈니스 로직 혼재
+@Entity
+@Table(name = "orders")
+public class OrderEntity extends SoftDeleteBaseAuditing {
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @BatchSize(size = 100)
+    private List<OrderProductEntity> products;
+
+    private BigDecimal totalPaymentAmount;
+    private Long paymentId;
+
+    public void completePayment(final Long paymentId) {
+        if (!this.status.isPayable()) {
+            throw new CommerceException(CommerceErrorType.INVALID_ORDER_STATUS);
+        }
+        this.status = OrderStatus.PAID;
+        this.paymentId = paymentId;
+    }
+
+    public void validatePayable(final BigDecimal paymentAmount) {
+        if (!this.status.isPayable()) {
+            throw new CommerceException(CommerceErrorType.INVALID_ORDER_STATUS);
+        }
+        if (this.totalPaymentAmount.compareTo(paymentAmount) != 0) {
+            throw new CommerceException(CommerceErrorType.TOTAL_AMOUNT_NOT_MATCH);
+        }
+    }
+}
+```
+
+나쁘지 않아 보였다. 실제로 동작도 잘 했다. 문제가 드러난 건 **테스트를 작성할 때**였다.
+
+## 테스트에서 터진 문제들
+
+`completePayment()`를 단위 테스트하려고 했다. PENDING 상태에서 호출하면 PAID로 바뀌는지, PAID 상태에서 호출하면 예외가 던져지는지 확인하는 간단한 테스트.
+
+그런데 `OrderEntity`를 생성하려면 JPA가 요구하는 것들이 있었다.
+
+```java
+// 이 테스트를 쓰고 싶었다
+@Test
+void completePayment_결제_가능_상태에서_성공() {
+    // given — 여기서 막힌다
+    final OrderEntity order = OrderEntity.builder()
+        .status(OrderStatus.PENDING)
+        .totalPaymentAmount(BigDecimal.valueOf(50000))
+        .build();
+    // ❌ @NoArgsConstructor(access = PROTECTED)라 빌더를 써도
+    // JPA 프록시, @Id 자동생성 등의 제약이 따라온다
+
+    // when
+    order.completePayment(1L);
+
+    // then
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+}
+```
+
+JPA Entity를 "순수하게" 테스트하는 게 생각보다 까다로웠다.
+
+- `@Id`가 `@GeneratedValue`로 설정되어 있어서, `persist` 없이는 id가 null이다
+- `@OneToMany` 관계 때문에 products를 초기화하지 않으면 NullPointerException
+- `@BatchSize`, `@Where`, `@EntityGraph` 같은 어노테이션이 실제 DB 없이는 의미가 없다
+- Hibernate 프록시 때문에 `equals()` 동작이 일반 객체와 다르다
+
+결국 `@DataJpaTest`로 통합 테스트를 쓰게 됐는데, **비즈니스 로직 하나 검증하려고 DB를 올리는 게 맞나?** 라는 의문이 들었다.
+
+<Callout type="warning" title="겪었던 구체적인 문제">
+`validatePayable()`을 테스트할 때, `OrderEntity`를 생성하고 `totalPaymentAmount`를 설정하려면 결국 `@DataJpaTest` + `EntityManager.persist()`를 거쳐야 했다. 테스트 하나에 2초. 비즈니스 로직 테스트 20개면 40초. CI가 점점 느려졌다.
+</Callout>
+
+## 분리를 결심한 순간
+
+결정적인 계기는 **불변 객체를 만들 수 없다**는 점이었다.
+
+CLAUDE.md에도 적어뒀듯이 우리 팀은 도메인 객체의 불변성을 중요하게 생각한다. `toBuilder()`로 새 객체를 반환하는 패턴을 쓰고 싶었다. 하지만 JPA Entity는 태생적으로 **mutable**이다. Hibernate가 Dirty Checking으로 변경을 감지하려면 setter 또는 필드 직접 수정이 필요하다.
+
+```java
+// 이렇게 쓰고 싶었다 — 상태 변경 시 새 객체 반환
+public Order completePayment(final Long paymentId) {
+    if (!this.status.isPayable()) {
+        throw new CommerceException(CommerceErrorType.INVALID_ORDER_STATUS);
+    }
+    return this.toBuilder()
+        .status(OrderStatus.PAID)
+        .paymentId(paymentId)
+        .build();
+}
+
+// 하지만 JPA Entity에서는 이게 안 된다
+// Hibernate가 변경을 추적하려면 같은 인스턴스의 필드를 수정해야 한다
+```
+
+그래서 결론을 내렸다. **비즈니스 로직은 순수 도메인 모델에, 영속성은 JPA Entity에.** 둘을 물리적으로 분리하자.
+
+## 분리된 구조
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0', fontFamily: 'Inter, sans-serif'}}>Order Context — Domain vs Infrastructure</p>
+
+  {[
+    {indent: 0, icon: '📂', name: 'domain/model/', color: '#a78bfa', note: 'JPA 어노테이션 없음'},
+    {indent: 1, icon: '📄', name: 'Order.java', color: '#c4b5fd', note: '비즈니스 로직 + 불변'},
+    {indent: 1, icon: '📄', name: 'OrderProduct.java', color: '#c4b5fd', note: 'Value Object'},
+    {indent: 0, icon: '📂', name: 'domain/repository/', color: '#a78bfa', note: 'Port'},
+    {indent: 1, icon: '📄', name: 'OrderRepository.java', color: '#c4b5fd', note: 'Order를 반환하는 interface'},
+    {indent: 0, icon: '📂', name: 'infrastructure/persistence/', color: '#34d399', note: 'Adapter'},
+    {indent: 1, icon: '📄', name: 'OrderEntity.java', color: '#6ee7b7', note: '@Entity — 영속성만'},
+    {indent: 1, icon: '📄', name: 'OrderMapper.java', color: '#6ee7b7', note: 'Order ⇄ OrderEntity'},
+    {indent: 1, icon: '📄', name: 'OrderRepositoryImpl.java', color: '#6ee7b7', note: 'Port 구현체'},
+  ].map(({indent, icon, name, color, note}, i) => (
+    <div key={i} style={{paddingLeft: `${indent * 1.5}rem`, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.15rem 0', paddingLeft: `${indent * 1.5}rem`}}>
+      <span>{icon}</span>
+      <span style={{color: color}}>{name}</span>
+      {note && <span style={{color: '#6b7280', fontSize: '0.65rem', marginLeft: '0.5rem'}}>— {note}</span>}
+    </div>
+  ))}
+</div>
+
+## Order — 도메인 모델
+
+JPA 어노테이션이 하나도 없다. `@Builder(toBuilder = true)`로 불변 객체의 상태 변경을 표현한다.
+
+```java
+@Getter
+@Builder(access = AccessLevel.PRIVATE, toBuilder = true)
+public class Order {
+    private final Long id;
+    private final String orderNumber;
+    private final OrderStatus status;
+    private final OrderType type;
+    private final BigDecimal totalAmount;
+    private final BigDecimal totalPaymentAmount;
+    private final Long paymentId;
+    private final String officeId;
+    private final List<OrderProduct> products;
+    private final boolean enable;
+
+    public Order completePayment(final Long paymentId) {
+        if (!this.status.isPayable()) {
+            throw new CommerceException(CommerceErrorType.INVALID_ORDER_STATUS);
+        }
+        return this.toBuilder()
+            .status(OrderStatus.PAID)
+            .paymentId(paymentId)
+            .build();
+    }
+
+    public Order failPayment(final Long paymentId) {
+        return this.toBuilder()
+            .status(OrderStatus.FAILED)
+            .paymentId(paymentId)
+            .build();
+    }
+
+    public void validatePayable(final BigDecimal paymentAmount) {
+        if (!this.status.isPayable()) {
+            throw new CommerceException(CommerceErrorType.INVALID_ORDER_STATUS);
+        }
+        if (this.totalPaymentAmount.compareTo(paymentAmount) != 0) {
+            throw new CommerceException(CommerceErrorType.TOTAL_AMOUNT_NOT_MATCH);
+        }
+    }
+}
+```
+
+## 테스트가 깨끗해졌다
+
+분리 후 테스트가 이렇게 바뀌었다. JPA 컨텍스트 없이, 밀리초 단위로 실행된다.
+
+```java
+class OrderTest {
+
+    @Test
+    void completePayment_결제_가능_상태에서_PAID로_변경된다() {
+        // given — 순수 객체 생성, DB 불필요
+        final Order order = Order.builder()
+            .status(OrderStatus.PENDING)
+            .totalPaymentAmount(BigDecimal.valueOf(50000))
+            .build();
+
+        // when
+        final Order paid = order.completePayment(1L);
+
+        // then
+        assertThat(paid.getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(paid.getPaymentId()).isEqualTo(1L);
+        // 원본은 불변 — PENDING 그대로
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+    }
+
+    @Test
+    void completePayment_이미_결제된_주문은_예외를_던진다() {
+        // given
+        final Order order = Order.builder()
+            .status(OrderStatus.PAID)
+            .build();
+
+        // when & then
+        assertThatThrownBy(() -> order.completePayment(2L))
+            .isInstanceOf(CommerceException.class);
+    }
+
+    @Test
+    void validatePayable_금액이_다르면_예외를_던진다() {
+        // given
+        final Order order = Order.builder()
+            .status(OrderStatus.PENDING)
+            .totalPaymentAmount(BigDecimal.valueOf(50000))
+            .build();
+
+        // when & then
+        assertThatThrownBy(() -> order.validatePayable(BigDecimal.valueOf(30000)))
+            .isInstanceOf(CommerceException.class);
+    }
+}
+```
+
+<Callout type="tip" title="테스트 속도 체감">
+Entity에 로직이 있을 때 `@DataJpaTest` 기반 테스트 20개 = 약 40초. 분리 후 순수 단위 테스트 20개 = 약 0.3초. 130배 빨라졌다. CI 파이프라인에서 체감이 확 됐다.
+</Callout>
+
+## Mapper의 비용 — 이걸 감수할 가치가 있나?
+
+분리하면 Mapper가 생긴다. 솔직히 이 코드는 재미없는 보일러플레이트다.
+
+```java
+@Component
+public class OrderMapper {
+
+    public Order toDomain(final OrderEntity entity) {
+        return Order.builder()
+            .id(entity.getId())
+            .orderNumber(entity.getOrderNumber())
+            .status(entity.getStatus())
+            .type(entity.getType())
+            .totalAmount(entity.getTotalAmount())
+            .totalPaymentAmount(entity.getTotalPaymentAmount())
+            .paymentId(entity.getPaymentId())
+            .officeId(entity.getOfficeId())
+            .products(toProductDomains(entity.getProducts()))
+            .enable(entity.isEnable())
+            .build();
+    }
+
+    public OrderEntity toEntity(final Order order) {
+        return OrderEntity.builder()
+            .orderNumber(order.getOrderNumber())
+            .status(order.getStatus())
+            // ... 나머지 필드 매핑
+            .build();
+    }
+}
+```
+
+"이 매핑 코드를 쓸 가치가 있는가?"라고 팀에서 논의했다. 결론은 **도메인에 따라 다르다**였다.
+
+| 상황 | 판단 |
+|------|------|
+| 비즈니스 로직이 복잡하고 상태 전이가 많다 (결제) | 분리할 가치 있음 |
+| 단순 CRUD (검색 마스터 데이터) | Entity에 로직 포함이 더 간결 |
+| 도메인 테스트가 핵심인 영역 | 분리할 가치 있음 |
+| 필드가 3-4개인 간단한 엔티티 | 과설계 |
+
+결제 도메인은 상태 전이 규칙이 복잡하고, 금액 검증 로직이 많고, 이 로직들이 정확히 동작하는지 빠르게 검증해야 했다. Mapper 30줄을 감수할 만한 가치가 있었다.
+
+반면 `Searching` 모듈의 `SkillEntity`, `MajorEntity` 같은 마스터 데이터는 분리하지 않았다. 로직이라고 할 게 `name` 중복 체크 정도밖에 없었으니까.
+
+## Repository 구현체
+
+Repository 인터페이스는 `Order`(도메인 모델)를 반환한다. 구현체에서 Mapper로 변환한다.
+
+```java
+// Port — 도메인 계층에 정의
+public interface OrderRepository {
+    Order save(Order order);
+    Order getByOrderNumber(String orderNumber);
+    Order getByOrderNumberWithLock(String orderNumber);
+}
+
+// Adapter — 인프라 계층에서 구현
+@Repository
+@RequiredArgsConstructor
+public class OrderRepositoryImpl implements OrderRepository {
+
+    private final OrderJpaRepository jpaRepository;
+    private final OrderMapper mapper;
+
+    @Override
+    public Order save(final Order order) {
+        final OrderEntity entity = mapper.toEntity(order);
+        final OrderEntity saved = jpaRepository.save(entity);
+        return mapper.toDomain(saved);
+    }
+
+    @Override
+    public Order getByOrderNumberWithLock(final String orderNumber) {
+        return jpaRepository.findByOrderNumberWithLock(orderNumber)
+            .map(mapper::toDomain)
+            .orElseThrow(() -> new CommerceException(CommerceErrorType.NOT_FOUND));
+    }
+}
+```
+
+Service 계층에서는 `OrderRepository`만 의존한다. JPA의 존재를 모른다. 나중에 JPA를 다른 것으로 교체해도 Service 코드는 한 줄도 안 바뀐다. 실제로 교체할 일이 있을까? 아마 없을 거다. 하지만 **테스트에서 Mock Repository를 쓸 수 있다**는 건 확실한 이득이었다.
+
+다음 편에서는 Toss Payments를 연동하면서 **3계층으로 나눈 이유와 에러 처리에서 삽질한 이야기**를 한다.

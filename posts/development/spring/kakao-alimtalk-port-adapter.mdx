@@ -1,0 +1,288 @@
+---
+title: "Kakao AlimTalk 연동기: Port & Adapter로 외부 API 깔끔하게 감싸기"
+date: 2024-12-02
+description: "UseCase에 HTTP 호출을 직접 넣었다가 타임아웃이 트랜잭션을 롤백시킨 뒤, Port & Adapter로 분리한 이야기"
+summary: "알림톡 발송 실패가 메시지 저장까지 끌어내린 장애에서 시작된 아키텍처 분리 경험"
+categories:
+  - Development
+  - Spring
+tags:
+  - Kakao AlimTalk
+  - Port Adapter
+  - Clean Architecture
+  - Spring Boot
+---
+
+담당자가 지원자에게 메시지를 보내면 카카오 알림톡도 함께 발송해야 했다. 처음에는 UseCase 안에 HTTP 호출 코드를 직접 넣었다. "일단 동작하게 만들고 나중에 정리하자"는 말과 함께. 그 "나중"이 올 때까지 테스트 코드는 작성하지 못하고 있었다.
+
+## 처음 구현: UseCase에 HTTP 호출이 직접
+
+```java
+// 초기 구현 — UseCase가 외부 API 세부사항을 전부 안다
+@Service
+@RequiredArgsConstructor
+public class SendMessageByRecruiterUseCase {
+
+    private final RestTemplate restTemplate;
+    private final MsghubProps msghubProps;
+    private final ApplicantReader applicantReader;
+
+    public void execute(final String applicantId, final String message) {
+        // ... 메시지 저장 로직 ...
+
+        // 알림톡 발송 — 여기서부터 문제
+        final String token = DigestUtils.sha512Hex(
+            msghubProps.getUserId() + msghubProps.getTimestamp()
+        );
+        final HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        final ApiSendAlimtalkRequest alimtalkRequest = ApiSendAlimtalkRequest.builder()
+            .msg(message)
+            .tmpltCode(msghubProps.getTemplateCode())
+            .buttons(List.of(
+                new Button("결과 확인하기",
+                    "https://tajo.sofac.ai/applicant/" + applicantId + "/messages")
+            ))
+            .build();
+
+        restTemplate.exchange(
+            msghubProps.getSendUrl(),
+            HttpMethod.POST,
+            new HttpEntity<>(alimtalkRequest, headers),
+            new ParameterizedTypeReference<MsghubApiResponse<List<ApiSendAlimtalkResponse>>>() {}
+        );
+    }
+}
+```
+
+70줄짜리 UseCase에서 절반 이상이 알림톡 관련 코드였다. 메시지를 저장하는 비즈니스 로직과, SHA-512 토큰을 만들고 HTTP 요청을 조립하는 인프라 로직이 뒤섞여 있었다.
+
+## 문제가 쌓이기 시작했다
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem'}}>
+    {[
+      {title: '테스트 불가', desc: 'UseCase를 테스트하려면 Msghub API가 실제로 동작해야 했다. WireMock을 세팅하거나, 테스트할 때마다 진짜 알림톡이 발송됐다.', color: '#ef4444'},
+      {title: '구현 세부사항 노출', desc: 'SHA-512 토큰 생성, 템플릿 코드 관리, 버튼 URL 조립 — 전부 Msghub라는 특정 벤더에 종속된 세부사항이 UseCase에 노출됐다.', color: '#f59e0b'},
+      {title: '변경 영향 범위', desc: 'Msghub의 API 스펙이 바뀌면 UseCase를 수정해야 했다. 비즈니스 로직은 그대로인데 외부 API 때문에 UseCase가 바뀌는 건 말이 안 됐다.', color: '#a78bfa'},
+    ].map(({title, desc, color}) => (
+      <div key={title} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: color, fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem'}}>{title}</div>
+        <div style={{color: '#8b949e', fontSize: '0.73rem', lineHeight: 1.6}}>{desc}</div>
+      </div>
+    ))}
+  </div>
+</div>
+
+결정적으로 한 사건이 있었다. 알림톡 발송 과정에서 `RestTemplate` 타임아웃이 발생했는데, 그 예외가 UseCase의 트랜잭션을 롤백시켜 **메시지 저장까지 실패**했다. 알림톡 발송이 실패해도 메시지 저장은 성공해야 하는데, 두 관심사가 결합되어 있어서 한 쪽의 실패가 다른 쪽을 끌어내렸다.
+
+## Port 추출: KakaoAlimTalkSender 인터페이스
+
+"비즈니스 로직이 인프라 세부사항을 몰라야 한다"는 클린 아키텍처의 원칙을 적용했다. 먼저 인터페이스를 정의했다.
+
+```java
+public interface KakaoAlimTalkSender {
+
+    void sendAlimtalk(
+        String officeName,
+        String postingName,
+        String phone,
+        String applicantId
+    );
+}
+```
+
+파라미터가 도메인 언어로 되어 있다는 게 중요하다. `HttpHeaders`, `ApiSendAlimtalkRequest` 같은 인프라 타입이 아니라, `officeName`, `postingName` 같은 비즈니스 개념이다. 이 인터페이스만 보면 "회사명, 공고명, 전화번호를 받아서 알림톡을 보내는구나"가 바로 읽힌다.
+
+<Callout type="tip" title="인터페이스 이름에 'Kakao'가 들어간 이유">
+`NotificationSender`처럼 더 추상적으로 만들 수도 있었다. 하지만 현재 비즈니스 요구사항이 명확히 "카카오 알림톡"이고, 다른 메시징 채널(SMS, 푸시 등)과 인터페이스가 다르다. 미래를 과도하게 추상화하지 않고, 필요할 때 확장하기로 했다.
+</Callout>
+
+## Adapter 구현: MsghubKakaoAlimTalkSender
+
+Msghub REST API를 호출하는 구현체다. SHA-512 토큰 생성, 헤더 조립, 요청 빌드 같은 세부사항이 전부 이 클래스 안에 갇혔다.
+
+```java
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class MsghubKakaoAlimTalkSender implements KakaoAlimTalkSender {
+
+    private final RestTemplate msghubRestTemplate;
+    private final MsghubProps msghubProps;
+
+    @Override
+    public void sendAlimtalk(
+        final String officeName,
+        final String postingName,
+        final String phone,
+        final String applicantId
+    ) {
+        try {
+            final String token = generateToken();
+            final HttpHeaders headers = createHeaders(token);
+
+            final String message = buildMessage(officeName, postingName);
+            final ApiSendAlimtalkRequest request = ApiSendAlimtalkRequest.builder()
+                .msg(message)
+                .tmpltCode(msghubProps.getTemplateCode())
+                .buttons(List.of(
+                    new Button("결과 확인하기",
+                        "https://tajo.sofac.ai/applicant/" + applicantId + "/messages")
+                ))
+                .recvInfoLst(List.of(
+                    RecvInfo.of(phone, officeName, postingName)
+                ))
+                .build();
+
+            final ResponseEntity<MsghubApiResponse<List<ApiSendAlimtalkResponse>>> result =
+                msghubRestTemplate.exchange(
+                    msghubProps.getSendUrl(),
+                    HttpMethod.POST,
+                    new HttpEntity<>(request, headers),
+                    new ParameterizedTypeReference<>() {}
+                );
+
+            log.info("AlimTalk sent successfully: applicantId={}, status={}",
+                applicantId, result.getStatusCode());
+
+        } catch (final Exception e) {
+            log.error("Failed to send AlimTalk: applicantId={}", applicantId, e);
+        }
+    }
+
+    private String generateToken() {
+        final String raw = msghubProps.getUserId() + msghubProps.getTimestamp();
+        return DigestUtils.sha512Hex(raw);
+    }
+
+    private String buildMessage(final String officeName, final String postingName) {
+        return String.format(
+            "[%s] %s 채용 관련 새로운 메시지가 도착했습니다.",
+            officeName, postingName
+        );
+    }
+}
+```
+
+Adapter 내부에서 예외를 catch하고 로그만 남긴다는 점도 중요하다. 알림톡 발송 실패가 비즈니스 로직에 영향을 주면 안 된다. 이전에 타임아웃이 트랜잭션을 롤백시킨 그 문제를 구조적으로 방지한 것이다.
+
+## 이벤트 기반으로 완전 분리
+
+사실 Port & Adapter만으로는 부족했다. UseCase 안에서 `kakaoAlimTalkSender.sendAlimtalk()`을 직접 호출하면, 동기 호출이라 발송이 느릴 때 API 응답 시간이 늘어났다. 이벤트로 완전히 분리했다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.5rem 0'}}>AlimTalk Sending Flow</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.4rem', maxWidth: '500px', margin: '0 auto'}}>
+    {[
+      {label: '1. 담당자가 메시지 전송', color: '#8b949e', desc: 'SendMessageByRecruiterUseCase'},
+      {label: '2. MessageByRecruiterSentEvent 발행', color: '#38bdf8', desc: 'ApplicationEventPublisher'},
+      {label: '3. NotificationEventListener 수신', color: '#a78bfa', desc: '@Async + AFTER_COMMIT'},
+      {label: '4. SendAlimTalkUseCase 실행', color: '#f59e0b', desc: '도메인 데이터 조합'},
+      {label: '5. KakaoAlimTalkSender.sendAlimtalk()', color: '#34d399', desc: 'Port 호출'},
+      {label: '6. MsghubKakaoAlimTalkSender 실행', color: '#34d399', desc: 'Adapter -> Msghub REST API'},
+    ].map(({label, color, desc}, i) => (
+      <div key={i}>
+        {i > 0 && <div style={{textAlign: 'center', color: '#30363d', fontSize: '0.75rem', padding: '0.1rem'}}>↓</div>}
+        <div style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <span style={{color: color, fontWeight: 600}}>{label}</span>
+          <span style={{color: '#8b949e', fontSize: '0.75rem'}}>{desc}</span>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+```java
+@Component
+@RequiredArgsConstructor
+public class NotificationEventListener {
+
+    private final SendAlimTalkUseCase sendAlimTalkUseCase;
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void sendAlimTalk(final MessageByRecruiterSentEvent event) {
+        if (!event.isSendAlimTalk()) {
+            return;
+        }
+        try {
+            sendAlimTalkUseCase.sendAlimTalk(event.getApplicantId());
+        } catch (final Exception e) {
+            log.error("Failed to send AlimTalk: applicantId={}",
+                event.getApplicantId(), e);
+        }
+    }
+}
+```
+
+`@Async + AFTER_COMMIT` 조합이 핵심이다. 메시지 저장 트랜잭션이 커밋된 후에, 별도 스레드에서 알림톡을 발송한다. 메시지 저장과 알림톡 발송이 완전히 독립적으로 동작한다.
+
+## 테스트가 달라졌다
+
+Port를 인터페이스로 분리한 가장 큰 체감 효과는 테스트였다. 이전에는 WireMock을 세팅하거나 실제 API를 호출해야 했는데, 이제는 인터페이스를 mock하면 된다.
+
+```java
+@ExtendWith(MockitoExtension.class)
+class SendAlimTalkUseCaseTest {
+
+    @Mock
+    private KakaoAlimTalkSender kakaoAlimTalkSender;
+    @Mock
+    private ApplicantService applicantService;
+    @Mock
+    private PostingService postingService;
+    @Mock
+    private OfficeService officeService;
+
+    @InjectMocks
+    private SendAlimTalkUseCase useCase;
+
+    @Test
+    void sendAlimTalk() {
+        // given
+        given(applicantService.getById("app-1")).willReturn(applicantDto);
+        given(postingService.getById("post-1")).willReturn(postingDto);
+        given(officeService.getById("office-1")).willReturn(officeDto);
+
+        // when
+        useCase.sendAlimTalk("app-1");
+
+        // then
+        verify(kakaoAlimTalkSender).sendAlimtalk(
+            "소팩오피스", "백엔드 개발자", "010-1234-5678", "app-1"
+        );
+    }
+}
+```
+
+<Callout type="info" title="테스트 실행 시간도 줄었다">
+WireMock 기반 통합 테스트는 한 건에 2-3초가 걸렸는데, mock 기반 단위 테스트는 50ms도 안 걸린다. 테스트를 자주 돌릴 수 있게 되면서 코드 품질이 자연스럽게 올라갔다.
+</Callout>
+
+## 패키지 구조
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0', fontFamily: 'Inter, sans-serif'}}>Notification Architecture</p>
+
+  {[
+    {indent: 0, name: 'notification/', color: '#e6edf3', note: ''},
+    {indent: 1, name: 'application/', color: '#a78bfa', note: ''},
+    {indent: 2, name: 'KakaoAlimTalkSender.java', color: '#a78bfa', note: 'Port (interface)'},
+    {indent: 2, name: 'SendAlimTalkUseCase.java', color: '#a78bfa', note: 'UseCase'},
+    {indent: 1, name: 'infrastructure/', color: '#34d399', note: ''},
+    {indent: 2, name: 'MsghubKakaoAlimTalkSender.java', color: '#34d399', note: 'Adapter (Msghub 구현)'},
+    {indent: 1, name: 'domain/', color: '#f59e0b', note: ''},
+    {indent: 2, name: 'NotificationEventListener.java', color: '#f59e0b', note: '이벤트 수신'},
+  ].map(({indent, name, color, note}, i) => (
+    <div key={i} style={{paddingLeft: `${indent * 1.5}rem`, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.15rem 0', paddingLeft: `${indent * 1.5}rem`}}>
+      <span style={{color: color}}>{name}</span>
+      {note && <span style={{color: '#6b7280', fontSize: '0.65rem', marginLeft: '0.5rem'}}>-- {note}</span>}
+    </div>
+  ))}
+</div>
+
+돌이켜보면 "일단 동작하게 만들고 나중에 정리하자"에서 가장 위험한 건 "나중"이 언제인지 모른다는 것이었다. 타임아웃 장애가 나서야 정리했는데, 처음부터 인터페이스를 정의하는 데 30분이면 충분했다. Adapter 구현은 기존 코드를 옮기기만 하면 됐으니까. 장애 대응에 쓴 3시간을 생각하면, 30분의 설계 투자가 훨씬 저렴했다.

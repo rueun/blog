@@ -1,0 +1,372 @@
+---
+title: "BaseAuditing 계층 설계: Soft Delete부터 MemberContext까지"
+date: 2025-06-09
+description: "BaseEntity를 복사해 쓰다가 동기화 실패, MemberContext clear() 누락으로 메모리 누수까지 겪은 뒤 공통 모듈로 추출한 이야기"
+summary: "코드 복붙의 대가를 치르고 support/persistence 모듈을 만들기까지의 여정"
+categories:
+  - Development
+  - JPA
+tags:
+  - JPA
+  - Soft Delete
+  - BaseEntity
+  - Spring Boot
+---
+
+sofac 서비스에 BaseEntity를 만들어 쓰고 있었다. `id`, `createdAt`, `updatedAt`을 가진 단순한 `@MappedSuperclass`. 그러다 commerce 서비스가 추가됐고, BaseEntity를 그대로 복사해서 가져갔다. "같은 코드인데 복사해서 괜찮을까?"라고 잠깐 생각했지만, 서비스 간 의존성을 만들고 싶지 않아서 일단 넘어갔다.
+
+## 복사-붙여넣기의 대가
+
+3주 뒤, sofac에 `MemberContext`를 추가했다. JWT에서 파싱한 사용자 정보를 ThreadLocal에 넣어두고, Entity 저장 시 `createdBy`를 자동으로 기록하는 기능이었다. sofac의 BaseEntity에 `@PrePersist`로 `MemberContext.get().getId()`를 호출하도록 바꿨다.
+
+그런데 commerce에는 적용이 안 됐다. commerce의 BaseEntity는 별도 파일이니까. "commerce에도 같은 걸 넣어야 하나?" 고민하다가, 또 복사-붙여넣기를 했다.
+
+한 달 뒤 sofac에서 Soft Delete를 도입하면서 `deletedAt` 필드를 추가했다. commerce에도 추가해야 했다. 이때 깨달았다. **같은 코드를 두 곳에서 관리하는 건 지속 불가능하다.**
+
+<Callout type="error" title="복사본 동기화의 현실">
+sofac에서 `updatedBy` 필드를 추가했는데, commerce에는 빠뜨렸다. 나중에 commerce 주문 데이터에서 "누가 마지막으로 수정했는지" 추적하려고 했을 때 필드가 없어서 한참 헤맸다.
+</Callout>
+
+## support/persistence 모듈로 추출
+
+공통 엔티티 코드를 `support/persistence` 모듈로 분리하기로 했다. sofac과 commerce 모두 이 모듈을 의존하게 만들었다. 어떤 엔티티는 Soft Delete가 필요하고, 어떤 엔티티는 작성자 추적까지 필요하고, 어떤 엔티티는 Long 대신 String ID를 쓴다. 이 조합을 상속 계층으로 설계했다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Base Entity Hierarchy</p>
+
+  <div style={{border: '2px solid #8b949e', borderRadius: '16px', padding: '1rem', background: '#0f172a'}}>
+    <div style={{color: '#e6edf3', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.5rem'}}>BaseAuditing -- id(Long), createdAt, updatedAt</div>
+
+    <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem'}}>
+      <div style={{border: '2px solid #ef4444', borderRadius: '12px', padding: '0.75rem', background: '#1a0a0a'}}>
+        <div style={{color: '#fca5a5', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.5rem'}}>SoftDeleteBaseAuditing</div>
+        <div style={{color: '#8b949e', fontSize: '0.6rem'}}>+ deletedAt</div>
+        <div style={{color: '#8b949e', fontSize: '0.6rem'}}>+ delete(), restore(), isDeleted()</div>
+        <div style={{border: '2px solid #7c3aed', borderRadius: '8px', padding: '0.5rem', background: '#0f0a28', marginTop: '0.5rem'}}>
+          <div style={{color: '#a78bfa', fontSize: '0.65rem', fontWeight: 600}}>SoftDeleteMemberBaseAuditing</div>
+          <div style={{color: '#8b949e', fontSize: '0.6rem'}}>+ createdBy, updatedBy</div>
+          <div style={{color: '#8b949e', fontSize: '0.6rem'}}>+ @CreatedBy, @LastModifiedBy</div>
+        </div>
+      </div>
+
+      <div style={{border: '2px solid #38bdf8', borderRadius: '12px', padding: '0.75rem', background: '#0f172a'}}>
+        <div style={{color: '#93c5fd', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.5rem'}}>StringIdBaseAuditing</div>
+        <div style={{color: '#8b949e', fontSize: '0.6rem'}}>+ id: String (UUID)</div>
+        <div style={{color: '#8b949e', fontSize: '0.6rem'}}>+ Persistable 구현</div>
+        <div style={{color: '#8b949e', fontSize: '0.6rem'}}>+ @PrePersist UUID 자동 생성</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+## BaseAuditing -- 최상위 클래스
+
+모든 엔티티의 공통 필드를 정의한다. Long PK, 생성/수정 시간 자동 기록.
+
+```java
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
+@SuperBuilder
+@MappedSuperclass
+public abstract class BaseAuditing {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    protected Long id;
+
+    @Column(updatable = false)
+    @CreatedDate
+    protected LocalDateTime createdAt;
+
+    @LastModifiedDate
+    protected LocalDateTime updatedAt;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
+        BaseAuditing that = (BaseAuditing) o;
+        return id != null && Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
+}
+```
+
+`@SuperBuilder`를 쓴 이유가 있다. 하위 클래스에서 Builder 패턴을 사용할 때, 부모 클래스의 필드도 함께 빌드할 수 있어야 한다. `@Builder`만으로는 상속 관계에서 제대로 동작하지 않는다.
+
+## SoftDeleteBaseAuditing -- 논리적 삭제
+
+물리적 DELETE 대신 `deletedAt`을 설정하는 Soft Delete. 삭제된 데이터도 복구할 수 있어야 했기 때문에 선택했다.
+
+```java
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+@SuperBuilder
+@MappedSuperclass
+public abstract class SoftDeleteBaseAuditing extends BaseAuditing {
+
+    protected LocalDateTime deletedAt;
+
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    public void restore() {
+        this.deletedAt = null;
+    }
+
+    public boolean isDeleted() {
+        return this.deletedAt != null;
+    }
+}
+```
+
+`delete()`와 `restore()`를 메서드로 제공한다. `setDeletedAt(LocalDateTime.now())`처럼 setter를 외부에서 호출하는 게 아니라, "삭제한다"라는 행위를 표현한다.
+
+<Callout type="warning" title="@Where vs @SQLRestriction">
+처음에 `@Where(clause = \"deleted_at IS NULL\")`를 써서 삭제된 데이터를 자동 필터링했는데, Hibernate 6.3부터 `@Where`가 deprecated됐다. `@SQLRestriction`으로 마이그레이션해야 한다. 또한 네이티브 쿼리에서는 자동 필터링이 안 되므로, 직접 조건을 추가해야 한다.
+</Callout>
+
+## SoftDeleteMemberBaseAuditing -- 작성자 추적
+
+"누가 만들었는지, 누가 수정했는지"를 자동으로 기록한다.
+
+```java
+@Getter
+@NoArgsConstructor
+@MappedSuperclass
+@SuperBuilder
+public abstract class SoftDeleteMemberBaseAuditing extends SoftDeleteBaseAuditing {
+
+    @Column(updatable = false, length = 50)
+    @CreatedBy
+    protected String createdBy;
+
+    @Column(length = 50)
+    @LastModifiedBy
+    protected String updatedBy;
+}
+```
+
+`@CreatedBy`와 `@LastModifiedBy`는 Spring Data JPA의 Auditing 기능이다. `AuditorAware<String>` 구현체에서 현재 사용자 ID를 반환하면 자동으로 채워진다. 그 "현재 사용자"를 어디서 가져오느냐가 다음 주제인 MemberContext다.
+
+## MemberContext -- ThreadLocal의 빛과 그림자
+
+인증 필터에서 JWT를 파싱한 뒤, 사용자 정보를 ThreadLocal에 저장한다. 서비스 계층 어디서든 `MemberContext.get()`으로 현재 요청의 사용자를 꺼낼 수 있다.
+
+```java
+public class MemberContext {
+
+    private static final ThreadLocal<MemberDto> context = new ThreadLocal<>();
+
+    public static MemberDto get() {
+        return context.get();
+    }
+
+    public static void set(final MemberDto dto) {
+        context.set(dto);
+    }
+
+    public static void clear() {
+        context.remove();
+    }
+}
+```
+
+```java
+@Getter
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
+public class MemberDto {
+    private String id;
+    private String name;
+    private String phoneNumber;
+    private String email;
+    private boolean verified;
+    private boolean admin;
+}
+```
+
+commerce에서는 AOP로 MemberContext를 주입하는 방식을 썼다. 컨트롤러 메서드에 `@InjectMemberContext`를 붙이면, 파라미터에서 memberId를 추출해서 ThreadLocal에 넣는다.
+
+```java
+@Aspect
+@Component
+public class MemberContextAspect {
+
+    @Pointcut("@annotation(InjectMemberContext)")
+    public void injectMemberContextPointcut() {}
+
+    @Before("injectMemberContextPointcut()")
+    public void setMemberContext(final JoinPoint joinPoint) {
+        for (final Object arg : joinPoint.getArgs()) {
+            if (arg instanceof MemberAware memberAware) {
+                final MemberDto member = MemberDto.builder()
+                    .id(memberAware.getMemberId())
+                    .email(memberAware.getMemberEmail())
+                    .build();
+                MemberContext.set(member);
+                break;
+            }
+        }
+    }
+}
+```
+
+### 메모리 누수 사건
+
+배포 후 일주일 정도 지났을 때, 서버 메모리가 서서히 올라가는 현상이 발견됐다. heap dump를 떠보니 `MemberDto` 인스턴스가 비정상적으로 많이 남아 있었다.
+
+원인은 `MemberContext.clear()`를 호출하지 않은 것이었다. 톰캣의 스레드풀에서 스레드를 재사용하는데, ThreadLocal에 저장된 `MemberDto`가 스레드가 반환된 이후에도 남아 있었다. 요청 A의 사용자 정보가 요청 B에서 읽히는 보안 이슈도 잠재적으로 있었다.
+
+<Callout type="error" title="ThreadLocal clear()를 빠뜨리면">
+스레드풀 환경에서 ThreadLocal에 저장된 객체가 GC되지 않아 메모리가 누수된다. 더 위험한 건, 이전 요청의 사용자 정보가 다음 요청에서 읽히는 보안 문제다. 필터의 `finally` 블록이나 인터셉터의 `afterCompletion`에서 반드시 `clear()`를 호출해야 한다.
+</Callout>
+
+수정은 간단했다. 필터에서 `finally`로 반드시 정리하도록 했다.
+
+```java
+// 인증 필터의 finally에서 반드시 clear
+@Override
+protected void doFilterInternal(...) {
+    try {
+        final MemberDto member = parseJwt(request);
+        MemberContext.set(member);
+        filterChain.doFilter(request, response);
+    } finally {
+        MemberContext.clear(); // 이 한 줄을 빠뜨렸었다
+    }
+}
+```
+
+## StringIdBaseAuditing -- UUID 기반 PK
+
+ATS에서 지원자 ID나 면접 일정 ID는 외부에 노출된다(URL, 알림톡 링크 등). Long ID를 쓰면 `/applicant/42` 같은 URL에서 순차적 추측이 가능하다. String UUID로 바꿔서 `/applicant/k7x9m2p` 같은 형태로 만들었다.
+
+```java
+@Getter
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
+@MappedSuperclass
+public abstract class StringIdBaseAuditing implements Persistable<String> {
+
+    @Id
+    @Column(updatable = false, nullable = false, unique = true)
+    protected String id;
+
+    @Column(updatable = false)
+    @CreatedDate
+    protected LocalDateTime createdAt;
+
+    @LastModifiedDate
+    protected LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (!StringUtils.hasText(id)) {
+            id = UUIDUtils.shortId();
+        }
+    }
+
+    @Override
+    public boolean isNew() {
+        return createdAt == null;
+    }
+}
+```
+
+`Persistable<String>`을 구현한 이유가 있다. Spring Data JPA는 `save()` 호출 시 `isNew()`로 INSERT/UPDATE를 판단한다. String ID는 이미 값이 있으므로 기본 구현(`id == null`)으로는 항상 UPDATE로 판단한다. `createdAt == null`이면 새 엔티티로 판단하도록 오버라이드했다.
+
+## 커스텀 타입 변환기
+
+JPA 컬럼에 `List<String>`이나 `List<Long>`을 JSON으로 저장할 일이 많았다. 매번 `ObjectMapper`를 직접 쓰는 대신, 공통 변환기를 만들었다.
+
+```java
+public abstract class JsonAttributeConverter<T> implements AttributeConverter<T, String> {
+
+    private final TypeReference<T> typeReference;
+
+    public JsonAttributeConverter(final TypeReference<T> typeReference) {
+        this.typeReference = typeReference;
+    }
+
+    @Override
+    public String convertToDatabaseColumn(final T attribute) {
+        if (attribute == null) {
+            return null;
+        }
+        return JsonUtils.toJson(attribute);
+    }
+
+    @Override
+    public T convertToEntityAttribute(final String dbData) {
+        if (!StringUtils.hasText(dbData)) {
+            return null;
+        }
+        return JsonUtils.fromJson(dbData, typeReference);
+    }
+}
+```
+
+하위 클래스는 `TypeReference`만 전달하면 된다.
+
+```java
+@Converter
+public class StringListConverter extends JsonAttributeConverter<List<String>> {
+    public StringListConverter() {
+        super(new TypeReference<List<String>>() {});
+    }
+}
+
+@Converter
+public class LongListConverter extends JsonAttributeConverter<List<Long>> {
+    public LongListConverter() {
+        super(new TypeReference<List<Long>>() {});
+    }
+}
+
+@Converter(autoApply = true)
+public class LocalDateTimeListConverter extends JsonAttributeConverter<List<LocalDateTime>> {
+    public LocalDateTimeListConverter() {
+        super(new TypeReference<List<LocalDateTime>>() {});
+    }
+}
+```
+
+## 엔티티별 상속 선택 가이드
+
+| 엔티티 특성 | 상속할 클래스 |
+|------------|-------------|
+| Long PK, 물리 삭제 | `BaseAuditing` |
+| Long PK, 논리 삭제 | `SoftDeleteBaseAuditing` |
+| Long PK, 논리 삭제 + 작성자 추적 | `SoftDeleteMemberBaseAuditing` |
+| String PK (외부 노출용) | `StringIdBaseAuditing` |
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <div style={{display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center'}}>
+    {[
+      {name: 'OrderEntity', parent: 'SoftDeleteBaseAuditing', color: '#ef4444'},
+      {name: 'PaymentEntity', parent: 'BaseAuditing', color: '#8b949e'},
+      {name: 'ApplicantEntity', parent: 'StringIdBaseAuditing', color: '#38bdf8'},
+      {name: 'ScheduleEntity', parent: 'StringIdBaseAuditing', color: '#38bdf8'},
+      {name: 'PostingEntity', parent: 'SoftDeleteMemberBaseAuditing', color: '#a78bfa'},
+      {name: 'StepEntity', parent: 'SoftDeleteMemberBaseAuditing', color: '#a78bfa'},
+    ].map(({name, parent, color}) => (
+      <div key={name} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.5rem 0.8rem', textAlign: 'center'}}>
+        <div style={{color: '#e6edf3', fontSize: '0.8rem', fontWeight: 600}}>{name}</div>
+        <div style={{color: color, fontSize: '0.65rem', marginTop: '0.2rem'}}>{parent}</div>
+      </div>
+    ))}
+  </div>
+</div>
+
+돌이켜보면, 처음 commerce에 BaseEntity를 복사했을 때 바로 모듈로 분리했어야 했다. "서비스가 2개뿐인데 뭘 모듈까지"라고 생각했지만, 복사본 동기화에 들인 시간과 메모리 누수 디버깅에 쓴 시간을 합치면, 모듈 추출에 들었을 반나절이 훨씬 저렴했다. 코드 중복은 발견한 즉시 제거하는 게 맞다. "나중에"는 항상 더 비싸다.

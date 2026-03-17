@@ -1,0 +1,345 @@
+---
+title: "멀티 모듈 Gradle로 공통 모듈 분리와 의존성 설계하기"
+date: 2025-08-11
+description: "SofacApiResponse를 복붙했다가 한 달 만에 응답 포맷이 달라져 API 클라이언트가 깨진 경험, 그리고 commons/support 멀티 모듈로 정리한 과정"
+summary: "복사-붙여넣기의 끝에서 만난 응답 포맷 불일치, commons와 support로 공통 코드를 분리하며 배운 것들"
+series: "Spring Cloud로 마이크로서비스 인프라 구축하기"
+categories:
+  - Development
+  - Microservice
+tags:
+  - Gradle
+  - Multi Module
+  - Microservice
+  - Spring Boot
+---
+
+## 복붙은 빚이다
+
+commerce 서비스를 새로 만들 때, sofac 서비스에서 잘 돌아가던 코드를 가져왔다. `SofacApiResponse`, `PageData`, `BaseAuditing` — 응답 포맷, 페이징, Base Entity를 통째로 복사해서 commerce 패키지에 넣었다. 처음에는 빠르게 서비스를 띄울 수 있어서 좋았다.
+
+**한 달 뒤, 프론트엔드 팀에서 버그 리포트가 들어왔다.**
+
+sofac 서비스의 목록 API와 commerce 서비스의 목록 API가 페이징 응답 형식이 다르다는 거였다. sofac 쪽에서 `PageData`의 `PageInfo`에 `hasNext` 필드를 추가했는데, commerce 쪽에는 여전히 이전 버전의 `PageData`가 들어 있었다. 프론트엔드에서는 `page.hasNext`를 읽으려고 하는데 commerce 응답에는 그 필드가 없으니 undefined가 되면서 "다음 페이지" 버튼이 사라져버렸다.
+
+<Callout type="error" title="응답 포맷 불일치 사고">
+sofac에서 PageData에 hasNext 필드를 추가했지만 commerce의 PageData는 수정되지 않았다. 프론트엔드는 두 서비스가 같은 응답 구조라고 가정하고 있었기 때문에, 없는 필드를 참조하면서 UI가 깨졌다.
+</Callout>
+
+사실 PageData만의 문제가 아니었다. `SofacApiResponse`의 에러 코드 처리 로직도 조금씩 달라지고 있었고, `BaseAuditing`의 `equals`/`hashCode` 구현도 sofac에서는 수정됐는데 commerce에서는 옛날 버전 그대로였다. **복사한 코드는 복사한 순간부터 독립적으로 진화한다.** 한 달이면 충분히 달라진다.
+
+이때 멀티 모듈을 도입하기로 결정했다.
+
+---
+
+## 무엇을 분리할 것인가 — commons vs support
+
+모듈을 나누기 전에 가장 오래 고민한 건 **분류 기준**이었다. "공통 코드"를 한 모듈에 다 넣으면 편하지만, 그러면 Gateway처럼 WebFlux 기반인 서비스가 JPA 의존성을 끌고 들어오게 된다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.2rem 0'}}>분류 기준: 핵심 의존성이 뭔가?</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
+    <div style={{background: '#161b22', border: '1px solid #065f46', borderRadius: '10px', padding: '1rem'}}>
+      <div style={{color: '#34d399', fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.5rem'}}>commons</div>
+      <div style={{color: '#8b949e', fontSize: '0.75rem', marginBottom: '0.75rem'}}>Spring MVC / Spring Web 의존</div>
+      <div style={{display: 'flex', flexDirection: 'column', gap: '0.3rem'}}>
+        {[
+          {name: 'web', desc: 'SofacApiResponse, PageData, HTTP 유틸'},
+          {name: 'context', desc: 'AOP, 로깅 Aspect, Caffeine 캐시'},
+          {name: 'utils', desc: 'JWT, UUID 생성, 범용 유틸리티'},
+          {name: 'models', desc: '공통 DTO, Validation'},
+        ].map(({name, desc}) => (
+          <div key={name} style={{display: 'flex', gap: '0.5rem', alignItems: 'baseline'}}>
+            <span style={{color: '#34d399', fontSize: '0.8rem', fontFamily: 'monospace', minWidth: '60px'}}>{name}</span>
+            <span style={{color: '#6b7280', fontSize: '0.7rem'}}>{desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div style={{background: '#161b22', border: '1px solid #7c3aed', borderRadius: '10px', padding: '1rem'}}>
+      <div style={{color: '#a78bfa', fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.5rem'}}>support</div>
+      <div style={{color: '#8b949e', fontSize: '0.75rem', marginBottom: '0.75rem'}}>JPA / Hibernate 의존</div>
+      <div style={{display: 'flex', flexDirection: 'column', gap: '0.3rem'}}>
+        {[
+          {name: 'persistence', desc: 'BaseAuditing, SoftDelete, Converter, QueryDSL 설정'},
+        ].map(({name, desc}) => (
+          <div key={name} style={{display: 'flex', gap: '0.5rem', alignItems: 'baseline'}}>
+            <span style={{color: '#a78bfa', fontSize: '0.8rem', fontFamily: 'monospace', minWidth: '60px'}}>{name}</span>
+            <span style={{color: '#6b7280', fontSize: '0.7rem'}}>{desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+이 분류 덕분에 Gateway는 `commons/web`만 의존하고 `support/persistence`는 가져가지 않는다. JPA 클래스패스가 없어도 Gateway가 정상 기동된다.
+
+<Callout type="tip" title="분류 기준은 '핵심 의존성'으로">
+"이 모듈을 쓰려면 어떤 프레임워크 의존성이 필요한가?"로 판단한다. Spring MVC가 필요하면 commons, JPA가 필요하면 support. 둘 다 필요 없는 순수 유틸리티는 commons/utils에 두되, 의존성을 최소화한다.
+</Callout>
+
+---
+
+## settings.gradle — findProject로 이름 줄이기
+
+```groovy
+rootProject.name = 'sofac-ats'
+
+/* ==== apps ==== */
+include 'apps:gateway'
+findProject(':apps:gateway')?.name = 'gateway'
+
+include 'apps:discovery'
+findProject(':apps:discovery')?.name = 'discovery'
+
+include 'apps:config-server'
+findProject(':apps:config-server')?.name = 'config-server'
+
+include 'apps:sofac'
+findProject(':apps:sofac')?.name = 'sofac'
+
+include 'apps:commerce'
+findProject(':apps:commerce')?.name = 'commerce'
+
+/* ==== commons ==== */
+include 'commons:web'
+findProject(':commons:web')?.name = 'web'
+
+include 'commons:utils'
+findProject(':commons:utils')?.name = 'utils'
+
+include 'commons:context'
+findProject(':commons:context')?.name = 'context'
+
+include 'commons:models'
+findProject(':commons:models')?.name = 'models'
+
+/* ==== support ==== */
+include 'support:persistence'
+findProject(':support:persistence')?.name = 'persistence'
+```
+
+`findProject()?.name` 패턴은 소소하지만 매일 쓰는 편의 기능이다. 이게 없으면 의존성 선언 시 `implementation project(':apps:sofac')`처럼 전체 경로를 써야 하는데, 이름을 재정의하면 `:sofac`으로 쓸 수 있다. 다만 서비스 참조할 때는 원래 경로(`":support:persistence"`)를 써야 해서, 우리 프로젝트에서는 실질적으로 `build.gradle`에서 전체 경로를 그대로 쓰고 있다.
+
+---
+
+## Root build.gradle — 버전 통일의 중심
+
+```groovy
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+
+    ext {
+        set('springCloudVersion', "2022.0.2")
+        set('springBootAdminVersion', "3.0.2")
+    }
+
+    group 'ai.sofac'
+    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_17
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        implementation 'org.mapstruct:mapstruct:1.5.3.Final'
+        annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.3.Final'
+        implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+            mavenBom "de.codecentric:spring-boot-admin-dependencies:${springBootAdminVersion}"
+        }
+    }
+}
+```
+
+모든 서브 모듈이 공통으로 쓰는 Lombok, MapStruct, Logstash Encoder를 루트에서 선언한다. 한때 sofac에서는 MapStruct 1.5.3을 쓰고 commerce에서는 1.5.2를 써서 매핑 동작이 미묘하게 달랐던 적이 있다. 루트에서 버전을 통일한 뒤로는 그런 문제가 사라졌다.
+
+`webDefaultModule`이라는 클로저도 정의해 두었다. Config Server, Eureka Client, Kafka Bus, Actuator 같은 Spring Cloud 공통 의존성을 한 번에 적용할 수 있다.
+
+---
+
+## 의존성 흐름 — 한 방향으로만
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Module Dependency Flow</p>
+
+  <div style={{border: '2px solid #ef4444', borderRadius: '16px', padding: '1rem', background: '#0f172a'}}>
+    <div style={{color: '#fca5a5', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.5rem'}}>Apps (실행 가능 서비스)</div>
+
+    <div style={{display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap'}}>
+      {[
+        {name: 'Sofac', deps: 'web + context + utils + models + persistence'},
+        {name: 'Commerce', deps: 'web + context + utils + models + persistence'},
+        {name: 'Gateway', deps: 'web (JPA 없이)'},
+      ].map(({name, deps}) => (
+        <div key={name} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.3rem 0.8rem'}}>
+          <span style={{color: '#e6edf3', fontSize: '0.8rem', fontWeight: 600}}>{name}</span>
+          <div style={{color: '#6b7280', fontSize: '0.6rem'}}>{deps}</div>
+        </div>
+      ))}
+    </div>
+
+    <div style={{textAlign: 'center', color: '#30363d', fontSize: '0.8rem', marginBottom: '0.5rem'}}>↓ 의존 (역방향 절대 금지)</div>
+
+    <div style={{display: 'flex', gap: '0.75rem', flexWrap: 'wrap'}}>
+      <div style={{border: '2px solid #059669', borderRadius: '12px', padding: '0.75rem', background: '#0a1a14', flex: 1, minWidth: '200px'}}>
+        <div style={{color: '#34d399', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.5rem'}}>Commons (Spring MVC 의존)</div>
+        <div style={{display: 'flex', gap: '0.3rem', flexWrap: 'wrap'}}>
+          {['web', 'context', 'utils', 'models'].map((m) => (
+            <span key={m} style={{background: '#161b22', borderRadius: '4px', padding: '0.2rem 0.5rem', color: '#8b949e', fontSize: '0.7rem'}}>{m}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{border: '2px solid #7c3aed', borderRadius: '12px', padding: '0.75rem', background: '#0f0a28', flex: 1, minWidth: '150px'}}>
+        <div style={{color: '#a78bfa', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.5rem'}}>Support (JPA 의존)</div>
+        <span style={{background: '#161b22', borderRadius: '4px', padding: '0.2rem 0.5rem', color: '#8b949e', fontSize: '0.7rem'}}>persistence</span>
+      </div>
+    </div>
+
+    <div style={{marginTop: '0.75rem', background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.5rem 1rem'}}>
+      <div style={{color: '#f59e0b', fontSize: '0.7rem'}}>규칙: Apps → Commons/Support OK, Commons ↔ Support 금지, Apps ↔ Apps 금지</div>
+    </div>
+  </div>
+</div>
+
+이 규칙을 어기면 순환 의존성이 생기고 빌드가 깨진다. 실제로 한 번 `commons/context`에서 `support/persistence`의 `BaseAuditing`을 참조하려 한 적이 있는데, Gradle이 순환 의존성 에러를 뱉었다. 그때 "support에서 context를 의존하고 있으니 역방향은 안 된다"는 걸 확인하고 설계를 수정했다.
+
+---
+
+## 실제 공통 코드 — SofacApiResponse와 PageData
+
+복붙으로 문제를 겪었던 바로 그 코드들이다. 이제는 `commons/web` 모듈에 한 벌만 존재한다.
+
+```java
+// commons/web/src/.../SofacApiResponse.java
+public class SofacApiResponse<T> {
+    @Builder.Default
+    private final int errorCode = 0;
+    @Builder.Default
+    private String message = "success";
+    private int status;
+    private T data;
+
+    public static <T> SofacApiResponse<T> ok(final T data) {
+        return SofacApiResponse.<T>builder()
+            .status(HttpStatus.OK.value()).data(data).build();
+    }
+
+    public static SofacApiResponse<Created> created(final String id) {
+        return SofacApiResponse.<Created>builder()
+            .status(HttpStatus.CREATED.value())
+            .data(Created.builder().id(id).build()).build();
+    }
+
+    public static SofacApiResponse<Void> noContent() {
+        return SofacApiResponse.<Void>builder()
+            .status(HttpStatus.NO_CONTENT.value())
+            .message("noContent").build();
+    }
+}
+```
+
+```java
+// commons/web/src/.../PageData.java
+public class PageData<T> {
+    private List<T> content;
+    private PageInfo page;
+
+    public static <T> PageData<T> of(final Page<T> page) {
+        return PageData.<T>builder()
+            .content(page.getContent())
+            .page(PageInfo.builder()
+                .first(page.isFirst())
+                .last(page.isLast())
+                .totalPages(page.getTotalPages())
+                .totalElements(page.getTotalElements())
+                .size(page.getSize())
+                .page(page.getNumber() + 1)  // 0-based → 1-based
+                .build())
+            .build();
+    }
+
+    public <U> PageData<U> map(final Function<? super T, ? extends U> converter) {
+        return PageData.<U>builder()
+            .content(content.stream().map(converter).collect(Collectors.toList()))
+            .page(page).build();
+    }
+}
+```
+
+`PageData.of()`에서 `page.getNumber() + 1`로 1-based 페이지 번호를 쓰는 것도 이 공통 모듈에서 한 번만 정의하면 모든 서비스가 동일하게 동작한다. 예전에 commerce에서 0-based로 보내고 sofac에서 1-based로 보내서 프론트엔드가 혼란스러워했던 게 이 코드 한 줄 때문이었다.
+
+### support/persistence — Base Entity
+
+```java
+// support/persistence/src/.../BaseAuditing.java
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
+@SuperBuilder
+@MappedSuperclass
+public abstract class BaseAuditing {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    protected Long id;
+
+    @Column(updatable = false)
+    @CreatedDate
+    protected LocalDateTime createdAt;
+
+    @LastModifiedDate
+    protected LocalDateTime updatedAt;
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o))
+            return false;
+        final BaseAuditing that = (BaseAuditing) o;
+        return id != null && Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
+}
+```
+
+이 `BaseAuditing`을 각 서비스에서 복사해 쓰다가 `equals()` 구현이 달라졌던 문제도 있었다. sofac에서는 Hibernate 프록시를 고려한 `Hibernate.getClass()` 비교로 수정했는데, commerce에서는 `getClass()` 직접 비교 버전이 남아 있었다. 지연 로딩된 프록시 객체와 실제 엔티티를 비교할 때 항상 `false`가 나오는 미묘한 버그였다.
+
+<Callout type="warning" title="Hibernate 프록시와 equals 주의">
+`getClass()` 대신 `Hibernate.getClass()`를 써야 지연 로딩 프록시와 실제 엔티티가 같은 타입으로 인식된다. 이걸 모듈화하지 않았으면 서비스마다 다른 `equals()` 구현이 버그를 만들었을 것이다.
+</Callout>
+
+---
+
+## 라이브러리 모듈의 핵심 설정 — bootJar vs jar
+
+commons와 support 모듈의 `build.gradle`에는 반드시 이 두 줄이 들어간다.
+
+```groovy
+bootJar.enabled = false
+jar.enabled = true
+```
+
+이걸 빼먹으면 Gradle이 라이브러리 모듈도 실행 가능한 Spring Boot JAR로 패키징하려 하면서 `main class를 찾을 수 없다`는 에러를 뱉는다. 처음에 이 에러를 만났을 때 "왜 라이브러리 모듈에서 main 클래스를 찾지?"라며 한참 헤맸다.
+
+---
+
+## 되돌아보며
+
+돌이켜보면 멀티 모듈 전환 자체는 어려운 작업이 아니었다. 어려웠던 건 **경계를 정하는 일**이었다. 어디까지가 commons이고 어디부터가 support인지, 어떤 코드가 공통이고 어떤 코드가 서비스 고유인지.
+
+결국 기준은 **의존성**이었다. Spring MVC가 필요한 코드와 JPA가 필요한 코드를 섞지 않는 것. 이 원칙 하나로 Gateway 같은 WebFlux 서비스와 Sofac 같은 MVC 서비스가 필요한 모듈만 골라 쓸 수 있게 됐다.
+
+복사-붙여넣기는 빠르다. 하지만 한 달이면 두 복사본은 서로 다른 코드가 된다. 처음부터 모듈을 나누는 게 아니라, **복붙이 문제를 일으킨 그 순간이 분리의 적기**였다.

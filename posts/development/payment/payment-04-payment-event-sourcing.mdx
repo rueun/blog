@@ -1,0 +1,267 @@
+---
+title: "PaymentEvent 이벤트 소싱과 PaymentDetail 다형성"
+date: 2025-04-28
+description: "결제 상태만 저장했다가 고객 문의를 못 풀게 된 뒤, 모든 상태 변화를 이벤트로 기록하게 된 이야기"
+summary: "결제 생명주기를 이벤트로 추적하고, 카드/계좌이체 정보를 다형적으로 저장하는 방법"
+series: "실전 결제 시스템 구현기"
+categories:
+  - Development
+  - Payment
+tags:
+  - Payment
+  - Event Sourcing
+  - Java
+  - Spring Boot
+---
+
+결제 시스템을 운영하면서 가장 곤란했던 순간은 고객 문의가 왔을 때였다. "결제했는데 주문이 안 보여요." Payment 테이블을 열어보면 status는 `FAILED`인데, **왜 실패했는지 아무 정보도 없었다.**
+
+## 상태만 저장하면 벌어지는 일
+
+처음에는 `PaymentEntity`에 status 필드만 두었다. PENDING → PAID 또는 PENDING → FAILED. 단순하고 깔끔했다.
+
+```java
+// 처음 구조
+@Entity
+public class PaymentEntity {
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus status; // PENDING, PAID, FAILED
+
+    private String pgPaymentKey;
+    private BigDecimal totalAmount;
+}
+```
+
+고객 문의가 올 때까지는 문제가 없었다. "결제가 왜 실패했나요?"라는 질문에 답할 수 없게 되면서 깨달았다.
+
+- FAILED인데 **왜 실패했는지** 모른다 — 카드 한도? 잔액 부족? PG 서버 장애?
+- 결제가 **언제 시도되고 언제 실패했는지** 정확한 시간을 모른다 — `updatedAt`은 마지막 수정 시간일 뿐
+- 재시도 후 성공한 경우 **몇 번 시도했는지** 모른다 — 이전 실패 기록이 덮어씌워진다
+- 취소 건은 **원래 얼마를 결제했고 얼마를 환불했는지** 추적이 안 된다
+
+특히 CS팀에서 "이 결제가 3시에 실패한 건지, 3시 5분에 재시도해서 성공한 건지 알 수 있나요?"라고 물었을 때, 답할 수 없었다. 그게 결정적이었다.
+
+## 모든 상태 변화를 이벤트로 기록하자
+
+결제의 현재 상태가 아니라 **어떤 과정을 거쳐 이 상태가 됐는지**를 기록하기로 했다.
+
+```java
+@Getter
+@Builder(access = AccessLevel.PRIVATE)
+public class PaymentEvent {
+    private final Long id;
+    private final PaymentEventType type;
+    private final PaymentMethod method;
+    private final BigDecimal amount;
+    private final String pgPaymentKey;
+    private final String pgErrorCode;
+    private final String pgErrorMessage;
+    private final PaymentDetail detail;
+    private final LocalDateTime eventAt;
+
+    // 각 이벤트 타입마다 팩토리 메서드를 둔다
+    public static PaymentEvent requested(
+        final PaymentMethod method, final BigDecimal amount
+    ) {
+        return PaymentEvent.builder()
+            .type(PaymentEventType.REQUESTED)
+            .method(method)
+            .amount(amount)
+            .eventAt(LocalDateTime.now())
+            .build();
+    }
+
+    public static PaymentEvent completed(
+        final PaymentMethod method,
+        final BigDecimal amount,
+        final String pgPaymentKey,
+        final PaymentDetail detail
+    ) {
+        return PaymentEvent.builder()
+            .type(PaymentEventType.COMPLETED)
+            .method(method)
+            .amount(amount)
+            .pgPaymentKey(pgPaymentKey)
+            .detail(detail)
+            .eventAt(LocalDateTime.now())
+            .build();
+    }
+
+    public static PaymentEvent failed(
+        final String errorCode, final String errorMessage
+    ) {
+        return PaymentEvent.builder()
+            .type(PaymentEventType.FAILED)
+            .pgErrorCode(errorCode)
+            .pgErrorMessage(errorMessage)
+            .eventAt(LocalDateTime.now())
+            .build();
+    }
+}
+```
+
+<Callout type="tip" title="왜 팩토리 메서드를 이벤트 타입마다 나눴는가">
+`COMPLETED` 이벤트에는 반드시 `pgPaymentKey`가 있어야 하고, `FAILED`에는 반드시 `errorCode`가 있어야 한다. 팩토리 메서드로 나누면 **타입별로 필수 데이터를 컴파일 타임에 강제**할 수 있다. `PaymentEvent.completed(method, amount, null, null)`같은 실수를 방지한다.
+</Callout>
+
+```java
+public enum PaymentEventType {
+    REQUESTED,        // 결제 요청됨
+    COMPLETED,        // 결제 완료
+    FAILED,           // 결제 실패
+    CANCEL_COMPLETED, // 취소 완료
+    CANCEL_FAILED     // 취소 실패
+}
+```
+
+## 이벤트 타임라인으로 보면 이렇다
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>실패 → 재시도 → 성공 시나리오의 이벤트 기록</p>
+
+  <div style={{borderLeft: '2px solid #30363d', marginLeft: '1rem', paddingLeft: '1.5rem'}}>
+    {[
+      {time: '15:00:00', title: 'REQUESTED', desc: '신용카드 50,000원', color: '#8b949e'},
+      {time: '15:00:03', title: 'FAILED', desc: 'INSUFFICIENT_BALANCE — 잔액 부족', color: '#ef4444'},
+      {time: '15:02:15', title: 'REQUESTED', desc: '다른 카드로 재시도 50,000원', color: '#8b949e'},
+      {time: '15:02:18', title: 'COMPLETED', desc: 'paymentKey: tgen_xxx, 카드: 삼성 **** 1234', color: '#34d399'},
+    ].map(({time, title, desc, color}, i) => (
+      <div key={i} style={{position: 'relative', marginBottom: '1.25rem'}}>
+        <div style={{position: 'absolute', left: '-2.05rem', top: '0.3rem', width: '10px', height: '10px', borderRadius: '50%', background: color}} />
+        <div style={{color: '#6b7280', fontSize: '0.65rem', fontFamily: 'monospace'}}>{time}</div>
+        <div style={{color: color, fontWeight: 600, fontSize: '0.85rem'}}>{title}</div>
+        <div style={{color: '#8b949e', fontSize: '0.8rem'}}>{desc}</div>
+      </div>
+    ))}
+  </div>
+</div>
+
+이 기록이 있으면 CS팀의 질문에 바로 답할 수 있다. "15시 정각에 잔액 부족으로 실패했고, 2분 뒤에 다른 카드로 성공했습니다."
+
+## PG 호출 전에 먼저 기록하는 이유
+
+PG API를 호출하기 **전에** Payment 레코드와 REQUESTED 이벤트를 먼저 저장한다. 이것도 뒤늦게 배운 교훈이다.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class PaymentInitService {
+
+    private final PaymentRepository paymentRepository;
+    private final PaymentEventRepository paymentEventRepository;
+
+    @Transactional
+    public Payment createPending(final CreatePaymentCommand command) {
+        final Payment payment = Payment.createPending(
+            command.getMethod(), command.getAmount(), command.getOrderNumber()
+        );
+        final Payment saved = paymentRepository.save(payment);
+
+        paymentEventRepository.save(
+            PaymentEvent.requested(command.getMethod(), command.getAmount()),
+            saved.getId()
+        );
+        return saved;
+    }
+}
+```
+
+왜 PG 호출 전에 저장하느냐? **네트워크 타임아웃 때문이다.** Toss API 호출 후 응답을 못 받으면 결제가 실제로 승인됐는지 알 수 없다. Payment 레코드가 있으면 나중에 `pgPaymentKey`로 Toss에 조회해서 보정할 수 있다. 레코드 자체가 없으면 **보정할 단서가 없다.**
+
+실제로 한 번 겪었다. 네트워크 불안정으로 타임아웃이 났는데, Toss에서는 결제가 승인된 상태였다. 고객 카드에서 돈은 빠져나갔는데 우리 시스템에는 결제 기록이 없었다. REQUESTED 이벤트라도 있었으면 "아, 이 시간에 이 금액으로 시도한 건이 있구나"를 알 수 있었을 텐데.
+
+## PaymentDetail — 결제 수단마다 저장해야 할 정보가 다르다
+
+결제 수단에 따라 기록해야 하는 정보가 다르다는 걸 뒤늦게 알았다.
+
+카드 결제면 카드사 이름, 카드 번호 뒷자리, 승인번호가 필요하다. 계좌이체면 은행 코드, 은행 이름이 필요하다. 처음에는 `PaymentEntity`에 모든 필드를 다 넣었는데, 카드 결제에서 `bankCode`는 null이고, 계좌이체에서 `approveNo`는 null이 되는 게 보기 싫었다.
+
+Java 17의 `sealed interface`와 `record`로 해결했다.
+
+```java
+public sealed interface PaymentDetail
+    permits CardPaymentDetail, TransferPaymentDetail {
+}
+
+public record CardPaymentDetail(
+    String issuerCode,
+    String issuerName,
+    String number,     // 마스킹된 카드번호 (**** **** **** 1234)
+    String cardType,
+    String approveNo
+) implements PaymentDetail {}
+
+public record TransferPaymentDetail(
+    String bankCode,
+    String bankName
+) implements PaymentDetail {}
+```
+
+DB에는 JSON으로 저장한다. 역직렬화할 때 어떤 구현체인지 판별하는 로직이 필요한데, `approveNo` 필드 유무로 구분했다. 카드 결제에만 승인번호가 있으니까.
+
+```java
+@Converter
+public class PaymentDetailConverter implements AttributeConverter<PaymentDetail, String> {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Override
+    public PaymentDetail convertToEntityAttribute(final String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            final JsonNode node = MAPPER.readTree(json);
+            if (node.has("approveNo")) {
+                return MAPPER.treeToValue(node, CardPaymentDetail.class);
+            }
+            return MAPPER.treeToValue(node, TransferPaymentDetail.class);
+        } catch (final JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize PaymentDetail", e);
+        }
+    }
+}
+```
+
+<Callout type="info" title="sealed interface를 선택한 이유">
+나중에 간편결제(카카오페이, 네이버페이)를 추가해야 할 수도 있다. `sealed interface`의 `permits`에 새 record만 추가하면 된다. 그리고 컴파일러가 switch 문에서 새 타입을 처리하지 않은 곳을 잡아준다. enum처럼 "모든 케이스를 다 처리했는가?"를 강제할 수 있다.
+</Callout>
+
+## Toss 응답 → PaymentDetail 변환
+
+Toss API 응답에서 결제 수단을 판별해 적절한 구현체를 만드는 매퍼다.
+
+```java
+@Component
+public class TossPaymentDetailMapperImpl implements TossPaymentDetailMapper {
+
+    @Override
+    public PaymentDetail toPaymentDetail(final TossPaymentsResponse response) {
+        return switch (response.getMethod()) {
+            case "카드" -> new CardPaymentDetail(
+                response.getCard().getIssuerCode(),
+                response.getCard().getIssuerName(),
+                response.getCard().getNumber(),
+                response.getCard().getCardType(),
+                response.getCard().getApproveNo()
+            );
+            case "계좌이체" -> new TransferPaymentDetail(
+                response.getTransfer().getBankCode(),
+                response.getTransfer().getBankName()
+            );
+            default -> throw new IllegalArgumentException(
+                "Unsupported payment method: " + response.getMethod()
+            );
+        };
+    }
+}
+```
+
+`default`에서 예외를 던지는 건 의도적이다. 지원하지 않는 결제 수단으로 결제가 들어오면 **빨리 실패해서 알아차리는 게** 낫다. null을 반환하면 나중에 어딘가에서 NullPointerException이 터지고, 그때는 원인을 찾기 훨씬 어렵다.
+
+## 이벤트 소싱 도입 후 달라진 것
+
+- **CS 대응**: "15시 3분에 카드 한도 초과로 실패, 15시 5분에 다른 카드로 성공" — 즉시 답변 가능
+- **장애 보정**: REQUESTED만 있고 COMPLETED/FAILED가 없으면 → PG 조회로 보정
+- **통계**: 결제 수단별 실패율, 시간대별 결제량 등 분석 가능
+- **감사(Audit)**: 결제 생명주기의 완전한 기록
+
+다음 편(마지막)에서는 **OrderStatus와 PaymentStatus의 이중 상태 머신**, 비관적 락, 그리고 환불 흐름까지 포함한 전체 결제 생명주기를 다룬다.
