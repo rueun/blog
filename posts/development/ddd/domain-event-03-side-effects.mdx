@@ -1,0 +1,317 @@
+---
+title: "지원 한 번에 리스너 10개가 반응한다 — 부수효과 실전 해부"
+date: 2024-10-07
+description: "지원자 온라인 지원 시 발생하는 중복 체크, 이메일, 알림톡, Meta 동기화, 통계 업데이트까지 이벤트 리스너의 실전 코드를 해부한다"
+summary: "하나의 이벤트에 여러 리스너가 반응하는 구조의 장점과 운영 중 겪은 문제들"
+series: "도메인 이벤트로 Aggregate 간 느슨한 결합 만들기"
+categories:
+  - Development
+  - DDD
+tags:
+  - Domain Driven Design
+  - Domain Event
+  - Event Listener
+  - Spring Boot
+  - Java
+---
+
+이전 편에서 BEFORE_COMMIT과 AFTER_COMMIT을 언제 써야 하는지 정리했다. 이번에는 실제 리스너 코드를 열어놓고, 각 부수효과가 어떤 문제를 풀고 있는지 하나씩 짚어본다.
+
+지원자가 온라인으로 지원하면 `ApplicantAppliedEvent`가 발행된다. 이 이벤트 하나에 반응하는 리스너 메서드가 몇 개인지 세어봤더니, **ApplicantEventListener에 2개, ApplicantMetaEventListener에 1개, PostingEventListener에 1개**. 총 4개가 동시에 깨어난다. 거기에 다른 이벤트까지 합치면 `ApplicantEventListener` 클래스 하나에 리스너 메서드가 10개다.
+
+## 전체 이벤트-리스너 지도
+
+먼저 전체 그림을 보자. 어떤 이벤트가 어떤 리스너를 깨우는지.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Event to Listener Mapping</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem'}}>
+    {[
+      {event: 'ApplicantAppliedEvent', listeners: ['Meta 생성 (BC)', '중복 체크 (AC)', '이메일 발송 (AC)', '지원자 수 sync (AC)'], color: '#a78bfa'},
+      {event: 'SingleApplicantRegisteredEvent', listeners: ['Meta 생성 (BC)', '중복 체크 (AC)', '지원자 수 sync (AC)'], color: '#38bdf8'},
+      {event: 'ApplicantBulkRegisteredEvent', listeners: ['Meta 벌크 생성 (BC)', '지원자 수 sync (AC)'], color: '#38bdf8'},
+      {event: 'ApplicantDeletedEvent', listeners: ['Meta 삭제 (AC)', '중복 재계산 (AC)', '이메일 히스토리 삭제 (AC)', '지원자 수 sync (AC)'], color: '#ef4444'},
+      {event: 'ApplicantInfoReplacedEvent', listeners: ['중복 재계산 x2 (AC)'], color: '#f59e0b'},
+      {event: 'EmailSentEvent', listeners: ['이메일 히스토리 상태 갱신 (AC)'], color: '#34d399'},
+      {event: 'MessageByRecruiterSentEvent', listeners: ['메시지 수신 이메일 (AC)', '알림톡 발송 (AC)'], color: '#34d399'},
+      {event: 'PostingDeletedEvent', listeners: ['지원자 전체 삭제 (AC)'], color: '#ef4444'},
+    ].map(({event, listeners, color}) => (
+      <div key={event} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem'}}>
+        <div style={{color: color, fontWeight: 600, fontSize: '0.75rem', minWidth: '240px'}}>{event}</div>
+        <div style={{display: 'flex', gap: '0.3rem', flexWrap: 'wrap'}}>
+          {listeners.map((l) => (
+            <span key={l} style={{background: '#0d1117', borderRadius: '4px', padding: '0.2rem 0.5rem', color: '#8b949e', fontSize: '0.65rem', border: '1px solid #30363d'}}>{l}</span>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+  <div style={{color: '#6b7280', fontSize: '0.65rem', marginTop: '0.75rem', textAlign: 'center'}}>BC = BEFORE_COMMIT (동기, 같은 트랜잭션) / AC = AFTER_COMMIT + @Async (비동기, 별도 스레드)</div>
+</div>
+
+이렇게 보면 `ApplicantAppliedEvent`가 가장 바쁜 이벤트다. 리스너 4개가 동시에 반응한다. 이전 편에서 다룬 것처럼, Meta 생성만 BEFORE_COMMIT이고 나머지는 전부 AFTER_COMMIT + @Async다.
+
+이제 각 부수효과를 하나씩 뜯어보자.
+
+## 중복 체크: 삭제할 때도 다시 돌려야 한다
+
+가장 까다로웠던 건 중복 체크 로직이었다. 같은 공고에 같은 이름 + 전화번호로 지원한 사람이 있으면 중복으로 표시한다. 단순해 보이지만, 운영하면서 엣지 케이스를 여러 개 만났다.
+
+처음에는 "새 지원자가 들어올 때만 중복 체크하면 되지" 싶었다. 그런데 QA에서 이런 시나리오를 찾아왔다.
+
+> 김철수A, 김철수B가 같은 공고에 지원했다. 둘 다 중복으로 표시됨. 그런데 김철수A를 삭제하면? 김철수B는 더 이상 중복이 아닌데 여전히 `isDuplicated = true`로 남아 있다.
+
+그래서 **삭제할 때도 중복을 재계산**해야 했다.
+
+```java
+// 지원/등록 시: 같은 이름+전화번호 가진 지원자들을 중복으로 마킹
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void updateApplicationDuplicated(final ApplicantAppliedEvent event) {
+    try {
+        final ApplicantWithAnswerDto applicant = event.getApplicantWithAnswer();
+        applicantService.updateDuplicated(
+            event.getPostingId(), applicant.getName(), applicant.getPhoneNumber()
+        );
+    } catch (final Exception e) {
+        log.error("지원자 지원 시 중복 지원 여부 업데이트 실패", e);
+    }
+}
+
+// 삭제 시: 삭제된 지원자와 같은 이름+전화번호를 가진 지원자들의 중복 여부 재계산
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void updateApplicationDuplicated(final ApplicantDeletedEvent event) {
+    try {
+        final ApplicantWithAnswerDto applicant = event.getApplicant();
+        applicantService.updateDuplicated(
+            applicant.getPostingId(), applicant.getName(), applicant.getPhoneNumber()
+        );
+    } catch (final Exception e) {
+        log.error("지원자 삭제 시 지원자 중복 지원 여부 업데이트 실패", e);
+    }
+}
+```
+
+`updateDuplicated` 메서드 안에서는 해당 공고에서 같은 이름 + 전화번호를 가진 지원자가 2명 이상이면 `markAsDuplicate()`, 1명 이하면 `unmarkAsDuplicate()`를 호출한다.
+
+<Callout type="tip" title="정보 수정 시에도 중복 재계산이 필요하다">
+지원자 정보를 수정하면 더 복잡해진다. 김철수가 이름을 "김영희"로 바꾸면, 기존 "김철수" 그룹과 새로운 "김영희" 그룹 양쪽 모두 중복 여부를 재계산해야 한다. 그래서 `ApplicantInfoReplacedEvent`는 `oldApplicant`와 `newApplicant` 둘 다 들고 있고, 양쪽 모두에 대해 `updateDuplicated`를 호출한다.
+</Callout>
+
+```java
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void replaceApplicant(final ApplicantInfoReplacedEvent event) {
+    try {
+        final String postingId = event.getNewApplicant().getPostingId();
+        // 변경 전 이름+전화번호 그룹 재계산
+        applicantService.updateDuplicated(
+            postingId, event.getOldApplicant().getName(), event.getOldApplicant().getPhoneNumber()
+        );
+        // 변경 후 이름+전화번호 그룹 재계산
+        applicantService.updateDuplicated(
+            postingId, event.getNewApplicant().getName(), event.getNewApplicant().getPhoneNumber()
+        );
+    } catch (final Exception e) {
+        log.error("지원자 정보 수정 시 중복 지원 여부 업데이트 실패", e);
+    }
+}
+```
+
+이게 UseCase에 직접 들어 있었다면? 지원 UseCase, 삭제 UseCase, 수정 UseCase 3곳에 중복 체크 로직이 산재했을 것이다. 이벤트로 분리하니 리스너 하나에 응집됐다.
+
+## 이메일 발송: 이벤트가 이벤트를 낳는다
+
+지원 완료 시 이메일을 보내는 건 간단하다. 그런데 "이메일이 실제로 발송됐는지 추적해야 한다"는 요구사항이 추가됐다.
+
+처음에는 이메일 발송 후 바로 히스토리를 업데이트했다.
+
+```java
+// 처음 시도: 이메일 보내고 바로 히스토리 저장
+sendEmail(applicant.getEmail(), template);
+emailHistoryService.markAsSent(emailId);  // 근데 실제로 도착했는지는 모름
+```
+
+문제는 이메일을 "보냈다"는 것과 "전달됐다"는 것이 다르다는 점이었다. SMTP 서버에 요청은 성공했지만 수신자 메일 서버에서 반송될 수 있다. 그래서 이메일 발송 결과를 별도 이벤트(`EmailSentEvent`)로 받아서 히스토리를 갱신하는 구조로 바꿨다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>이메일 발송 이벤트 체인</p>
+
+  <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem'}}>
+    {[
+      {label: 'ApplicantAppliedEvent', color: '#a78bfa', desc: '지원자가 지원함'},
+      null,
+      {label: 'sendApplicationSuccessEmail()', color: '#38bdf8', desc: '지원 확인 이메일 발송'},
+      null,
+      {label: 'EmailSentEvent', color: '#34d399', desc: '이메일 발송 결과 수신'},
+      null,
+      {label: 'updateEmailHistory()', color: '#f59e0b', desc: '히스토리 상태 갱신 (SENT/FAILED/BOUNCED)'},
+    ].map((item, i) => item === null ? (
+      <div key={i} style={{color: '#30363d', fontSize: '1rem'}}>|</div>
+    ) : (
+      <div key={i} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.6rem 1.5rem', textAlign: 'center', minWidth: '350px'}}>
+        <div style={{color: item.color, fontWeight: 600, fontSize: '0.8rem'}}>{item.label}</div>
+        <div style={{color: '#8b949e', fontSize: '0.7rem'}}>{item.desc}</div>
+      </div>
+    ))}
+  </div>
+</div>
+
+```java
+// 이메일 발송 결과를 이벤트로 받아서 히스토리 갱신
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void updateEmailHistory(final EmailSentEvent event) {
+    try {
+        final EmailDto email = event.getEmail();
+        applicationEmailHistoryService.tryToUpdateEmailHistoryByEmailId(email);
+    } catch (final Exception e) {
+        log.error("지원자 이메일 히스토리 발송 상태 갱신 에러", e);
+    }
+}
+```
+
+이벤트가 이벤트를 낳는 구조다. `ApplicantAppliedEvent` → 이메일 발송 → `EmailSentEvent` → 히스토리 갱신. 처음에는 "이벤트가 너무 많아지는 거 아닌가" 싶었지만, 각 단계가 독립적으로 실패하고 재시도할 수 있다는 점에서 이 구조가 맞다고 판단했다.
+
+## 알림톡: 플래그 하나가 필요한 이유
+
+채용 담당자가 지원자에게 메시지를 보내면 카카오 알림톡도 함께 발송한다. `NotificationEventListener`가 이걸 처리한다.
+
+```java
+@Slf4j
+@RequiredArgsConstructor
+@Component
+public class NotificationEventListener {
+
+    private final SendAlimTalkUseCase sendAlimTalkUseCase;
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void sendMessageReceivedEmail(final MessageByRecruiterSentEvent event) {
+        try {
+            if (event.isSendAlimTalk()) {
+                sendAlimTalkUseCase.sendAlimTalk(
+                    event.getMessageDetail().getMessageRoom().getApplicantId()
+                );
+            }
+        } catch (final Exception e) {
+            log.error("채담자가 메시지를 보냈을 때 지원자에게 메시지 수신 알림톡 전송 실패", e);
+        }
+    }
+}
+```
+
+`event.isSendAlimTalk()` 체크가 있다. 담당자가 메시지를 보낼 때 "알림톡도 같이 보낼까요?" 옵션이 있기 때문이다. 처음에는 이 플래그 없이 무조건 알림톡을 보냈는데, 담당자가 내부 메모 성격의 메시지를 보낼 때도 지원자에게 알림톡이 가는 문제가 생겼다. "아직 전달할 내용이 아닌데 지원자한테 알림이 갔어요."
+
+그래서 이벤트에 `sendAlimTalk` 플래그를 추가했다. 이벤트에 이런 "옵션" 데이터를 넣는 게 맞는지 고민했지만, 리스너가 발행 측의 컨텍스트를 알아야 하는 경우에는 이벤트에 포함하는 게 자연스럽다고 결론 내렸다.
+
+## 같은 이벤트, 다른 반응: Applied vs Registered
+
+같은 "지원자 생성"이지만 이벤트를 분리한 이유가 여기서 드러난다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>이벤트별 활성화되는 리스너 비교</p>
+
+  <div style={{overflowX: 'auto'}}>
+    <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem'}}>
+      <thead>
+        <tr style={{borderBottom: '1px solid #30363d'}}>
+          <th style={{padding: '0.5rem', textAlign: 'left', color: '#8b949e', fontWeight: 400}}>리스너</th>
+          <th style={{padding: '0.5rem', textAlign: 'center', color: '#a78bfa'}}>Applied</th>
+          <th style={{padding: '0.5rem', textAlign: 'center', color: '#38bdf8'}}>Registered</th>
+          <th style={{padding: '0.5rem', textAlign: 'center', color: '#38bdf8'}}>BulkRegistered</th>
+        </tr>
+      </thead>
+      <tbody>
+        {[
+          ['Meta 생성', true, true, true],
+          ['중복 체크', true, true, false],
+          ['이메일 발송 (지원자)', true, false, false],
+          ['이메일 발송 (관리자)', true, false, false],
+          ['지원자 수 sync', true, true, true],
+        ].map(([name, a, r, b], i) => (
+          <tr key={i} style={{borderBottom: '1px solid #21262d'}}>
+            <td style={{padding: '0.5rem', color: '#c9d1d9'}}>{name}</td>
+            <td style={{padding: '0.5rem', textAlign: 'center', color: a ? '#34d399' : '#6b7280'}}>{a ? 'O' : '-'}</td>
+            <td style={{padding: '0.5rem', textAlign: 'center', color: r ? '#34d399' : '#6b7280'}}>{r ? 'O' : '-'}</td>
+            <td style={{padding: '0.5rem', textAlign: 'center', color: b ? '#34d399' : '#6b7280'}}>{b ? 'O' : '-'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+온라인 지원(`Applied`)에만 이메일을 보낸다. 관리자가 직접 등록한 지원자에게 "지원 완료 이메일"을 보내면 이상하니까. 일괄 등록은 중복 체크도 하지 않는다 -- 엑셀로 한꺼번에 올린 데이터에 중복이 있을 수 있지만, 그건 관리자가 의도한 것일 수 있으므로 자동 체크하지 않기로 했다.
+
+이벤트를 분리해놨기 때문에 이 차이가 자연스럽게 구현된다. `ApplicantAppliedEvent`를 구독하는 리스너와 `SingleApplicantRegisteredEvent`를 구독하는 리스너가 다르니까.
+
+## 삭제의 연쇄 반응
+
+지원자 삭제는 생성보다 더 많은 리스너가 반응한다.
+
+```java
+// 삭제 시 중복 재계산
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void updateApplicationDuplicated(final ApplicantDeletedEvent event) { ... }
+
+// 삭제 시 이메일 히스토리 정리
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void deleteApplicantEmailHistory(final ApplicantDeletedEvent event) { ... }
+
+// 삭제 시 Meta 삭제
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void deleteApplicantMeta(final ApplicantDeletedEvent event) { ... }
+
+// 삭제 시 지원자 수 통계 갱신
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void syncNumberOfApplicant(final ApplicantDeletedEvent event) { ... }
+```
+
+리스너 4개가 반응한다. 게다가 **채용 공고 삭제** 시에는 해당 공고의 지원자를 **전부** 삭제해야 한다. 이것도 이벤트로 처리한다.
+
+```java
+// PostingDeletedEvent → 해당 공고의 지원자 전체 삭제
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void deleteApplicantEmailHistory(final PostingDeletedEvent event) {
+    try {
+        deleteApplicantUseCase.deleteAllByPostingId(event.getPosting().getId());
+    } catch (final Exception e) {
+        log.error("채용 삭제 시 지원자 삭제 에러", e);
+    }
+}
+```
+
+공고 삭제 → 지원자 전체 삭제 → 각 지원자에 대해 Meta 삭제, 히스토리 삭제, 중복 재계산... 이벤트의 연쇄 반응이 일어난다.
+
+<Callout type="warning" title="연쇄 이벤트는 주의가 필요하다">
+`PostingDeletedEvent` → 지원자 삭제 → `ApplicantDeletedEvent` → Meta 삭제, 중복 재계산... 이 체인이 길어지면 디버깅이 어려워진다. 로그에 이벤트 이름과 관련 ID를 빠짐없이 남기는 게 중요하다. 우리도 처음에는 `log.error(e.getMessage(), e)` 수준이었다가, 이벤트명과 이벤트 데이터를 함께 남기도록 개선했다.
+</Callout>
+
+## 새 부수효과 추가 = 리스너 하나
+
+이 구조의 진짜 힘은 확장할 때 나온다. 나중에 "지원 완료 시 Slack 채널에 알림"이 필요해지면?
+
+```java
+@Async
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void notifySlack(final ApplicantAppliedEvent event) {
+    try {
+        final ApplicantWithAnswerDto applicant = event.getApplicantWithAnswer();
+        slackService.sendNewApplicantAlert(event.getPostingId(), applicant.getName());
+    } catch (final Exception e) {
+        log.error("Slack 알림 발송 실패", e);
+    }
+}
+```
+
+기존 코드를 한 줄도 수정하지 않는다. UseCase도, 다른 리스너도 모른다. Open/Closed Principle이 교과서가 아니라 실제 코드에서 동작하는 순간이다.
+
+다음 편에서는 시야를 넓혀서 **서로 다른 Aggregate 사이의 이벤트 통신**을 다룬다. Posting과 Step 사이의 순환 의존을 이벤트로 끊은 이야기, 결제 완료 후 장바구니 상태를 바꾸는 Cross-Aggregate 패턴까지.

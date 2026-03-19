@@ -6,24 +6,50 @@ import type { PostMeta, Post, CategoryTreeItem } from './types'
 
 const postsDir = path.join(process.cwd(), 'posts')
 
+/** slug → 파일 경로 캐시 (재귀 탐색 결과를 저장하여 반복 탐색 방지) */
+let postFileCache: Map<string, { filePath: string; isMdx: boolean }> | null = null
+
 function removeHugoShortcodes(content: string): string {
   return content.replace(/\{\{<\s*.*?\s*>\}\}/gs, '')
 }
 
+/** posts 디렉토리를 재귀 탐색하여 모든 md/mdx 파일을 slug → 경로로 매핑 */
+function buildPostFileCache(): Map<string, { filePath: string; isMdx: boolean }> {
+  if (postFileCache) return postFileCache
+
+  const cache = new Map<string, { filePath: string; isMdx: boolean }>()
+
+  function scanDir(dir: string): void {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        scanDir(path.join(dir, entry.name))
+      } else if (entry.name.endsWith('.md') || entry.name.endsWith('.mdx')) {
+        const slug = entry.name.replace(/\.mdx?$/, '')
+        const filePath = path.join(dir, entry.name)
+        const isMdx = entry.name.endsWith('.mdx')
+        // mdx 우선: 같은 slug의 mdx가 이미 있으면 md로 덮어쓰지 않음
+        if (!cache.has(slug) || isMdx) {
+          cache.set(slug, { filePath, isMdx })
+        }
+      }
+    }
+  }
+
+  if (fs.existsSync(postsDir)) scanDir(postsDir)
+  postFileCache = cache
+  return cache
+}
+
 function findPostFile(slug: string): { filePath: string; isMdx: boolean } {
-  const mdxPath = path.join(postsDir, `${slug}.mdx`)
-  const mdPath = path.join(postsDir, `${slug}.md`)
-  if (fs.existsSync(mdxPath)) return { filePath: mdxPath, isMdx: true }
-  return { filePath: mdPath, isMdx: false }
+  const cache = buildPostFileCache()
+  const entry = cache.get(slug)
+  if (entry) return entry
+  // fallback: 캐시에 없으면 기본 경로로
+  return { filePath: path.join(postsDir, `${slug}.md`), isMdx: false }
 }
 
 export function getAllPostSlugs(): string[] {
-  if (!fs.existsSync(postsDir)) return []
-  const slugs = new Set<string>()
-  fs.readdirSync(postsDir)
-    .filter((f) => f.endsWith('.md') || f.endsWith('.mdx'))
-    .forEach((f) => slugs.add(f.replace(/\.mdx?$/, '')))
-  return Array.from(slugs)
+  return Array.from(buildPostFileCache().keys())
 }
 
 export function getAllPostMetas(): PostMeta[] {

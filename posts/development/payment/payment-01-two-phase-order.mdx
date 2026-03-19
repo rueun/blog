@@ -1,0 +1,296 @@
+---
+title: "임시 주문 → 실주문 2단계 결제 모델 설계하기"
+date: 2025-04-07
+description: "주문 테이블 하나로 시작했다가 PENDING 주문 폭탄을 맞고, TemporaryOrder를 분리하게 된 이야기"
+summary: "왜 주문을 2단계로 나눴고, 각 단계의 책임은 무엇인지"
+series: "실전 결제 시스템 구현기"
+categories:
+  - Development
+  - Payment
+tags:
+  - Payment
+  - Domain Driven Design
+  - Spring Boot
+  - Java
+---
+
+커머스 모듈을 처음 만들 때, 주문 테이블은 하나면 될 거라고 생각했다. `OrderEntity`에 `status` 필드를 두고 PENDING → PAID로 바꾸면 끝이라고.
+
+한 달 운영해보니 그 생각이 틀렸다는 걸 알았다.
+
+## 하나의 주문 테이블로 시작
+
+처음 설계는 단순했다. 사용자가 결제 버튼을 누르면 `OrderEntity`를 PENDING으로 만들고, PG사 결제가 성공하면 PAID로 바꾸는 구조.
+
+```java
+// 처음 구조 — 주문 테이블 하나
+@Entity
+@Table(name = "orders")
+public class OrderEntity extends SoftDeleteBaseAuditing {
+
+    @Column(nullable = false, unique = true)
+    private String orderNumber;
+
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status; // PENDING, PAID, FAILED, CANCELED
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    private List<OrderProductEntity> products;
+
+    private BigDecimal totalAmount;
+    private Long paymentId;
+}
+```
+
+잘 동작했다. 처음에는.
+
+## 문제가 터진 순간
+
+운영 데이터를 보니 이상한 현상이 보였다. **PENDING 상태 주문이 계속 쌓이고 있었다.** 사용자가 결제 페이지까지 갔다가 취소하거나, PG사 결제 페이지에서 이탈하면 PENDING 주문만 남는다. 이걸 아무도 정리하지 않고 있었다.
+
+문제는 이뿐만이 아니었다.
+
+- **조회 성능 저하**: 관리자가 "결제 완료된 주문 목록"을 볼 때, PENDING/FAILED 주문을 매번 `WHERE status = 'PAID'`로 걸러야 했다. PENDING이 전체 주문의 60%를 차지하니까 인덱스 효율이 떨어졌다.
+- **관계의 무게**: PENDING 주문에도 `OrderProductEntity`가 줄줄이 딸려 있었다. 결제도 안 된 주문에 왜 정규화된 상품 테이블이 필요한가?
+- **만료 로직의 어색함**: PENDING 주문을 30분 후 만료시키려면 스케줄러가 `orders` 테이블을 풀스캔해야 했다. 결제 완료된 주문까지 같은 테이블에 있으니 비효율적이었다.
+
+<Callout type="warning" title="실제로 겪은 수치">
+한 달간 생성된 주문 중 PENDING 상태가 약 60%, PAID가 35%, 나머지 5%가 FAILED/CANCELED였다. 데이터 대부분이 "결제하다가 이탈한" 쓰레기 데이터였다.
+</Callout>
+
+## 선택지를 고민했다
+
+이 문제를 해결할 방법이 몇 가지 있었다.
+
+1. **스케줄러로 PENDING 주문 주기적 삭제** — 간단하지만, 정규화된 `OrderProductEntity`까지 cascade 삭제해야 해서 무겁다
+2. **Soft Delete로 PENDING 주문 숨기기** — 이미 Soft Delete를 쓰고 있었는데, "삭제"와 "이탈"은 의미가 다르다
+3. **테이블 분리** — 결제 전/후를 아예 다른 테이블로 관리
+
+3번을 선택한 결정적인 이유는 **결제 전 주문과 결제 후 주문의 생명주기가 완전히 다르다**는 깨달음이었다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
+    <div>
+      <div style={{color: '#f59e0b', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem'}}>결제 전 (TemporaryOrder)</div>
+      <div style={{background: '#1a1400', border: '1px solid #78350f', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: '#fcd34d', fontSize: '0.8rem', lineHeight: 1.8}}>수명: 30분</div>
+        <div style={{color: '#fcd34d', fontSize: '0.8rem', lineHeight: 1.8}}>자주 생성되고 자주 버려짐</div>
+        <div style={{color: '#fcd34d', fontSize: '0.8rem', lineHeight: 1.8}}>상품 정보가 가벼우면 됨</div>
+        <div style={{color: '#fcd34d', fontSize: '0.8rem', lineHeight: 1.8}}>조인이 필요 없음</div>
+      </div>
+    </div>
+    <div>
+      <div style={{color: '#34d399', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem'}}>결제 후 (Order)</div>
+      <div style={{background: '#0a1a14', border: '1px solid #065f46', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: '#6ee7b7', fontSize: '0.8rem', lineHeight: 1.8}}>수명: 영구 보관</div>
+        <div style={{color: '#6ee7b7', fontSize: '0.8rem', lineHeight: 1.8}}>생성 후 거의 변경 없음</div>
+        <div style={{color: '#6ee7b7', fontSize: '0.8rem', lineHeight: 1.8}}>상품-옵션 관계 정규화 필요</div>
+        <div style={{color: '#6ee7b7', fontSize: '0.8rem', lineHeight: 1.8}}>관리자 검색, 통계에 사용</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+생명주기가 다른 데이터를 같은 테이블에 넣은 게 근본적인 문제였다.
+
+## TemporaryOrder를 분리하다
+
+분리하면서 중요한 결정을 하나 더 내렸다. **임시 주문의 상품 목록은 JSON으로 저장한다.**
+
+처음에는 "정규화해야 하지 않나?"라고 고민했다. 하지만 임시 주문은 30분 후면 사라지는 데이터다. `OrderProductEntity`를 만들고 FK를 걸고 cascade 삭제를 설정하는 건, 30분짜리 데이터에 과한 투자였다.
+
+```java
+@Entity
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Table(name = "temporary_orders")
+public class TemporaryOrderEntity extends BaseAuditing {
+
+    @Column(nullable = false, unique = true)
+    private String orderNumber;
+
+    @Column(nullable = false)
+    private String memberId;
+
+    @Column(nullable = false)
+    private BigDecimal totalAmount;
+
+    // 정규화 대신 JSON — 30분짜리 데이터에 테이블 관계는 과하다
+    @Convert(converter = TemporaryOrderProductConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<TemporaryOrderProduct> products;
+
+    private String cartItemIds;
+    private LocalDateTime paymentExpiredAt;
+
+    @Builder(access = AccessLevel.PRIVATE)
+    private TemporaryOrderEntity(
+        final String memberId,
+        final BigDecimal totalAmount,
+        final List<TemporaryOrderProduct> products,
+        final String cartItemIds
+    ) {
+        this.orderNumber = generateOrderNumber();
+        this.memberId = memberId;
+        this.totalAmount = totalAmount;
+        this.products = products;
+        this.cartItemIds = cartItemIds;
+        this.paymentExpiredAt = LocalDateTime.now().plusMinutes(30);
+    }
+
+    private String generateOrderNumber() {
+        final String timestamp = LocalDateTime.now()
+            .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        final String random = String.valueOf((int) (Math.random() * 10000));
+        return timestamp + random;
+    }
+}
+```
+
+확정된 `Order`는 원래대로 정규화된 관계를 유지한다. 이 주문은 영구 보관되고, 관리자가 "어떤 상품을 몇 개 샀는가"를 조인해서 조회해야 하니까.
+
+```java
+@Entity
+@Table(name = "orders")
+public class OrderEntity extends SoftDeleteBaseAuditing {
+
+    @Column(nullable = false, unique = true)
+    private String orderNumber;
+
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @BatchSize(size = 100)
+    private List<OrderProductEntity> products = new ArrayList<>();
+
+    private Long paymentId;
+    private BigDecimal totalAmount;
+}
+```
+
+<Callout type="tip" title="주문번호 생성 전략에 대한 고민">
+UUID를 쓸까 고민했지만, PG사에 전달하는 주문번호에 길이 제한이 있었다. 그리고 관리자가 전화로 "주문번호 불러주세요"라고 할 때 UUID는 비현실적이다. 타임스탬프 + 4자리 난수로 정했는데, 지금까지 충돌은 없었다. 고동시성 환경이라면 Snowflake 같은 분산 ID 생성기로 교체할 생각이다.
+</Callout>
+
+## 두 가지 주문 생성 경로
+
+임시 주문을 만드는 경로가 두 가지 있다. "바로 결제하기"와 "장바구니 결제"인데, 처음에는 하나의 UseCase로 합쳤다가 나눴다.
+
+합쳤을 때 문제는 **검증 로직이 달랐다는 것**이다. "바로 결제"는 상품이 판매 중인지만 확인하면 되지만, "장바구니 결제"는 장바구니 아이템의 소유자 검증, 이미 주문된 아이템이 아닌지 확인, 상품 재고 확인까지 해야 했다. 하나의 UseCase에 if-else가 늘어나는 게 보여서 분리했다.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class DirectOrderUseCase {
+
+    private final ProductService productService;
+    private final OrderService orderService;
+
+    @Transactional
+    public TemporaryOrderDto execute(final DirectOrderRequest request) {
+        final ProductDto product = productService.getById(request.getProductId());
+        final CreateTemporaryOrderCommand command = request.toCommand(product);
+        return orderService.createTemporary(command);
+    }
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class OrderCartItemUseCase {
+
+    private final CartService cartService;
+    private final OrderService orderService;
+
+    @Transactional
+    public TemporaryOrderDto execute(final OrderCartItemRequest request) {
+        // 장바구니에서 주문할 때는 검증이 더 많다
+        final List<CartItemDto> cartItems = cartService.findAllOrderableByIds(
+            request.getCartItemIds(),
+            request.getMemberId()
+        );
+        final CreateTemporaryOrderCommand command = request.toCommand(cartItems);
+        return orderService.createTemporary(command);
+    }
+}
+```
+
+두 경로 모두 결국 `orderService.createTemporary()`를 호출한다. 입구는 다르지만 출구는 같은 구조다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.5rem 0'}}>Two Order Paths → Same Temporary Order</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0.5rem', alignItems: 'end'}}>
+    <div style={{display: 'grid', gap: '0.3rem'}}>
+      <div style={{color: '#38bdf8', fontWeight: 600, fontSize: '0.75rem', textAlign: 'center'}}>DirectOrderUseCase</div>
+      {['상품 조회', '판매 상태 검증'].map((s, i) => (
+        <div key={i} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.3rem 0.6rem', textAlign: 'center'}}>
+          <span style={{color: '#93c5fd', fontSize: '0.75rem'}}>{s}</span>
+        </div>
+      ))}
+    </div>
+
+    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', paddingBottom: '0.5rem'}}>
+      <div style={{color: '#475569'}}>↘</div>
+      <div style={{background: '#0a1a14', border: '2px solid #059669', borderRadius: '8px', padding: '0.5rem 1rem'}}>
+        <div style={{color: '#34d399', fontWeight: 600, fontSize: '0.8rem'}}>createTemporary()</div>
+      </div>
+      <div style={{color: '#475569'}}>↗</div>
+    </div>
+
+    <div style={{display: 'grid', gap: '0.3rem'}}>
+      <div style={{color: '#a78bfa', fontWeight: 600, fontSize: '0.75rem', textAlign: 'center'}}>OrderCartItemUseCase</div>
+      {['장바구니 조회', '소유자 검증', '주문 가능 상태 확인'].map((s, i) => (
+        <div key={i} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.3rem 0.6rem', textAlign: 'center'}}>
+          <span style={{color: '#c4b5fd', fontSize: '0.75rem'}}>{s}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
+## 상품 옵션이 복잡해진 이유
+
+처음에는 상품이 단순했다. "ATS 기본 플랜 — 월 5만원" 정도. 그런데 비즈니스 요구사항이 늘면서 상품 옵션이 카테고리별로 나뉘게 됐다.
+
+```java
+public enum ProductOptionCategory {
+    CAPABILITY, // AI 면접, 인적성 검사 등 역량 검사
+    RECRUIT,    // 공고 등록, 지원서 관리 등 채용 프로세스
+    OPTION      // 우선 노출, 추가 슬롯 등 부가 옵션
+}
+```
+
+"기본 플랜 + AI 면접 추가 + 우선 노출 추가"처럼 조합이 가능해야 했다. 그래서 `ProductOption`에 `standard` 플래그를 두어 기본 옵션과 추가 옵션을 구분했다.
+
+```java
+@Getter
+@Builder
+public class ProductOption {
+    private final Long id;
+    private final String code;
+    private final ProductOptionCategory category;
+    private final String name;
+    private final ProductStatus status;
+    private final BigDecimal price;
+    private final boolean standard; // 기본 옵션인가?
+    private final BigDecimal vat;
+
+    public boolean isOnSale() {
+        return this.status == ProductStatus.ON_SALE;
+    }
+}
+```
+
+이 구조 덕분에 임시 주문에서 "사용자가 어떤 옵션을 선택했는가"를 JSON으로 가볍게 저장할 수 있었다. 확정 주문에서는 `OrderProductOptionEntity`로 정규화해서 통계 쿼리에 활용한다.
+
+## 분리 후 달라진 것
+
+- **PENDING 주문 폭탄 해결**: 만료된 `temporary_orders`만 삭제하면 된다. `orders` 테이블에는 PAID 이상의 주문만 들어가므로 깨끗하다.
+- **조회 성능 개선**: 관리자 주문 목록에서 `WHERE status = 'PAID'` 필터가 필요 없어졌다. `orders` 테이블 자체가 결제 완료된 주문만 모은 것이니까.
+- **만료 로직 단순화**: `temporary_orders`에서 `paymentExpiredAt < now()`인 것만 삭제. 확정 주문에 영향 없음.
+- **관계의 적절한 무게**: 임시 주문은 JSON으로 가볍게, 확정 주문은 정규화로 단단하게.
+
+다음 편에서는 이 분리를 한 단계 더 밀고 나가서, **Domain Model과 JPA Entity를 왜 물리적으로 분리했는지** 이야기한다.

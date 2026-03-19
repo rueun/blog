@@ -1,0 +1,320 @@
+---
+title: "순환 의존을 이벤트로 끊은 이야기 — Aggregate 간 통신 패턴"
+date: 2024-10-21
+description: "Posting과 Step 사이의 순환 의존, 결제 완료 후 장바구니 상태 변경 등 서로 다른 Aggregate 간 이벤트 기반 통신의 실전 경험"
+summary: "직접 호출로는 풀리지 않았던 Aggregate 간 의존성 문제를 이벤트로 해결한 과정"
+series: "도메인 이벤트로 Aggregate 간 느슨한 결합 만들기"
+categories:
+  - Development
+  - DDD
+tags:
+  - Domain Driven Design
+  - Domain Event
+  - Aggregate
+  - Spring Boot
+  - Java
+---
+
+이전 3편에서 이벤트 설계, 트랜잭션 전략, 부수효과 분리를 다뤘다. 이번에는 **서로 다른 Aggregate가 이벤트로 대화하는 패턴**을 다룬다. 같은 Aggregate 안에서의 이벤트와는 결이 다르다. 순환 의존, 트랜잭션 경계, 실패 전파 -- 고민할 게 많다.
+
+## 순환 의존이 생기다
+
+ATS에서 채용 공고(Posting)를 만들면 기본 전형(Step)을 자동으로 생성해야 한다. "서류 전형 → 1차 면접 → 최종 면접" 같은 기본 전형을 공고 생성 시 함께 만들어주는 기능이다.
+
+처음에는 직관적으로 구현했다.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class CreatePostingUseCase {
+    private final PostingService postingService;
+    private final StepService stepService;  // Step Aggregate에 직접 의존
+
+    @Transactional
+    public PostingWithDetailDto execute(final CreatePostingCommand command) {
+        final PostingWithDetailDto posting = postingService.create(command);
+        stepService.configureDefaultSteps(posting.getId(), defaultStepCommands);  // 직접 호출
+        return posting;
+    }
+}
+```
+
+여기까지는 괜찮았다. 문제는 공고 **삭제** 기능을 만들 때 터졌다. 공고를 삭제하면 해당 전형도 삭제해야 한다. 그런데 전형을 삭제할 때는 해당 전형에 지원자가 있는지 확인하기 위해 공고 정보가 필요했다. 코드로 보면 이렇다.
+
+```java
+// PostingUseCase → StepService 의존 (공고 생성 시 전형 생성)
+// StepUseCase → PostingService 의존 (전형 삭제 시 공고 상태 확인)
+// → 순환 의존!
+```
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>순환 의존 문제</p>
+
+  <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1.5rem', padding: '1rem'}}>
+    <div style={{background: '#161b22', border: '2px solid #a78bfa', borderRadius: '12px', padding: '1rem 2rem', textAlign: 'center'}}>
+      <div style={{color: '#a78bfa', fontWeight: 700, fontSize: '0.9rem'}}>Posting</div>
+      <div style={{color: '#8b949e', fontSize: '0.7rem'}}>채용 공고</div>
+    </div>
+
+    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem'}}>
+      <div style={{color: '#ef4444', fontSize: '0.7rem'}}>생성 시 전형 필요</div>
+      <div style={{color: '#ef4444', fontSize: '1.2rem'}}>{'<--->'}</div>
+      <div style={{color: '#ef4444', fontSize: '0.7rem'}}>삭제 시 공고 정보 필요</div>
+    </div>
+
+    <div style={{background: '#161b22', border: '2px solid #38bdf8', borderRadius: '12px', padding: '1rem 2rem', textAlign: 'center'}}>
+      <div style={{color: '#38bdf8', fontWeight: 700, fontSize: '0.9rem'}}>Step</div>
+      <div style={{color: '#8b949e', fontSize: '0.7rem'}}>전형 단계</div>
+    </div>
+  </div>
+
+  <div style={{textAlign: 'center', color: '#ef4444', fontSize: '0.75rem', marginTop: '0.5rem'}}>양방향 의존 = 하나를 수정하면 다른 쪽도 영향받는다</div>
+</div>
+
+Spring Boot라서 빈 순환 참조 에러가 바로 나지는 않았다(`@Lazy`로 피하거나, 필드 주입으로 우회할 수 있다). 하지만 그건 문제를 숨기는 것이지 해결하는 게 아니다. Posting 코드를 수정하면 Step 테스트가 깨지고, Step 코드를 수정하면 Posting 테스트가 깨지는 상황이 반복됐다.
+
+## 이벤트로 끊기
+
+해결 방법은 명확했다. **Posting은 "공고가 생성됐다"는 이벤트만 발행하고, Step은 그 이벤트를 듣고 자기 할 일을 한다.**
+
+```java
+// Posting UseCase — Step을 전혀 모른다
+@Service
+@RequiredArgsConstructor
+public class CreatePostingUseCase {
+    private final PostingService postingService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Transactional
+    public PostingWithDetailDto execute(final CreatePostingCommand command) {
+        final PostingWithDetailDto posting = postingService.create(command);
+        eventPublisher.publishEvent(new PostingCreatedEvent(posting));
+        return posting;
+    }
+}
+```
+
+```java
+// Step Aggregate가 Posting 이벤트에 반응
+@Slf4j
+@RequiredArgsConstructor
+@Component
+public class StepEventListener {
+    private final StepService stepService;
+    private final DeleteStepUseCase deleteStepUseCase;
+    private final AtsProps atsProps;
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void createDefaultSteps(final PostingCreatedEvent event) {
+        try {
+            final PostingWithDetailDto posting = event.getPosting();
+            final List<CreateStepCommand> commands = atsProps.getDefaultStepNames().stream()
+                .map(stepName -> CreateStepCommand.builder()
+                    .name(stepName)
+                    .build())
+                .toList();
+            stepService.configureDefaultSteps(posting.getId(), commands);
+        } catch (final Exception e) {
+            log.error("공고 생성 시 기본 전형 생성 에러", e);
+        }
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void deleteSteps(final PostingDeletedEvent event) {
+        try {
+            deleteStepUseCase.deleteSteps(event.getPosting().getId());
+        } catch (final Exception e) {
+            log.error("공고 삭제 시 전형 삭제 에러", e);
+        }
+    }
+}
+```
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>이벤트 기반 단방향 의존</p>
+
+  <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1.5rem', padding: '1rem'}}>
+    <div style={{background: '#161b22', border: '2px solid #a78bfa', borderRadius: '12px', padding: '1rem 2rem', textAlign: 'center'}}>
+      <div style={{color: '#a78bfa', fontWeight: 700, fontSize: '0.9rem'}}>Posting</div>
+      <div style={{color: '#8b949e', fontSize: '0.7rem'}}>이벤트만 발행</div>
+    </div>
+
+    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem'}}>
+      <div style={{color: '#34d399', fontSize: '0.7rem'}}>PostingCreatedEvent</div>
+      <div style={{color: '#34d399', fontSize: '1.2rem'}}>{'--->'}</div>
+      <div style={{color: '#34d399', fontSize: '0.7rem'}}>PostingDeletedEvent</div>
+    </div>
+
+    <div style={{background: '#161b22', border: '2px solid #38bdf8', borderRadius: '12px', padding: '1rem 2rem', textAlign: 'center'}}>
+      <div style={{color: '#38bdf8', fontWeight: 700, fontSize: '0.9rem'}}>Step</div>
+      <div style={{color: '#8b949e', fontSize: '0.7rem'}}>이벤트 구독 후 자기 일 처리</div>
+    </div>
+  </div>
+
+  <div style={{textAlign: 'center', color: '#34d399', fontSize: '0.75rem', marginTop: '0.5rem'}}>단방향 의존 = Posting은 Step을 모른다. Step만 Posting 이벤트를 안다.</div>
+</div>
+
+이제 의존 방향이 **단방향**이다. Step이 Posting의 이벤트를 구독하지만, Posting은 Step의 존재를 모른다. Posting 코드를 아무리 수정해도 Step 테스트가 깨지지 않는다. 반대로 Step 리스너를 수정해도 Posting에는 영향이 없다.
+
+기본 전형 이름은 `atsProps.getDefaultStepNames()`에서 가져온다. 설정 파일에서 관리하니까 코드 수정 없이 기본 전형을 바꿀 수 있다. "서류 전형, 1차 면접, 최종 면접"이 기본값인데, 고객사마다 다른 기본값을 쓸 수 있도록 확장할 여지도 남겼다.
+
+## 사례 2: 결제 완료 → 장바구니 상태 변경
+
+ATS뿐 아니라 Commerce 모듈에서도 같은 패턴을 쓰고 있다. 결제가 완료되면 장바구니 아이템 상태를 변경해야 한다. Order Aggregate와 Cart Aggregate 사이의 통신이다.
+
+```java
+// 결제 완료 이벤트 — 장바구니 아이템 ID만 담는다
+public record PaymentCompletedEvent(List<Long> cartItemIds) {
+    public static PaymentCompletedEvent from(final Order order) {
+        return new PaymentCompletedEvent(order.getCartItemIds());
+    }
+}
+```
+
+```java
+// Cart Aggregate의 리스너
+@Slf4j
+@RequiredArgsConstructor
+@Component
+public class CartEventListener {
+
+    private final UpdateCartItemOrderedUseCase updateCartItemOrderedUseCase;
+
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void updateApplicationDuplicated(final PaymentCompletedEvent event) {
+        log.info("결제 성공 후 장바구니 항목 삭제");
+        try {
+            final List<Long> cartItemIds = event.cartItemIds();
+            updateCartItemOrderedUseCase.updateCartItem(cartItemIds);
+        } catch (final Exception e) {
+            log.error("결제 성공 후 장바구니 항목 삭제 실패 : {}", e.getMessage(), e);
+        }
+    }
+}
+```
+
+여기서 주목할 점이 두 가지 있다.
+
+첫째, `AFTER_COMMIT`이다. 결제가 완료된 후에 장바구니를 정리한다. 만약 장바구니 상태 변경이 실패해도 **결제는 이미 성공한 상태**여야 한다. 고객 입장에서 "결제했는데 실패했다"가 되면 안 된다.
+
+둘째, `@Transactional(propagation = Propagation.REQUIRES_NEW)`가 붙어 있다. 메인 트랜잭션은 이미 커밋됐으므로, 장바구니를 수정하려면 **새 트랜잭션**이 필요하다. 2편에서 다뤘던 패턴이 여기서도 등장한다.
+
+## "리스너가 실패하면 발행 측도 롤백되어야 하는가?"
+
+Cross-Aggregate 이벤트를 설계할 때 매번 마주치는 질문이다. 이걸 틀리면 데이터 불일치가 생긴다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '2rem', margin: '1.5rem 0'}}>
+  <div style={{textAlign: 'center', color: '#f59e0b', fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem'}}>"이 리스너가 실패하면 발행 측 트랜잭션도 실패해야 하는가?"</div>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
+    <div style={{background: '#1a1400', border: '1px solid #78350f', borderRadius: '8px', padding: '1rem'}}>
+      <div style={{color: '#fcd34d', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem'}}>예 → BEFORE_COMMIT</div>
+      <div style={{color: '#8b949e', fontSize: '0.75rem', lineHeight: 1.6}}>
+        "기본 전형 없는 공고"가 존재하면 안 되는가?<br/>
+        → 처음에는 "예"라고 생각했지만...<br/>
+        → 전형은 나중에 만들어도 공고는 사용 가능<br/>
+        → 결국 AFTER_COMMIT으로 결정
+      </div>
+    </div>
+    <div style={{background: '#0f0a28', border: '1px solid #7c3aed', borderRadius: '8px', padding: '1rem'}}>
+      <div style={{color: '#c4b5fd', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem'}}>아니오 → AFTER_COMMIT</div>
+      <div style={{color: '#8b949e', fontSize: '0.75rem', lineHeight: 1.6}}>
+        장바구니 상태가 안 바뀌어도 결제는 유효한가?<br/>
+        → 당연히 유효하다<br/>
+        → 장바구니는 나중에 정리해도 된다<br/>
+        → AFTER_COMMIT이 맞다
+      </div>
+    </div>
+  </div>
+</div>
+
+실제로 우리 시스템의 Cross-Aggregate 이벤트는 **전부 AFTER_COMMIT**이 됐다. 초기에는 `StepEventListener`의 기본 전형 생성을 `BEFORE_COMMIT`으로 할까 고민했지만, 전형 생성이 실패해도 공고 자체는 존재할 수 있고 관리자가 수동으로 전형을 추가할 수 있으므로 `AFTER_COMMIT`으로 결정했다.
+
+`BEFORE_COMMIT`이 적합한 케이스는 **같은 Aggregate 내부의 파생 데이터**(예: ApplicantMeta)에 가깝다. Cross-Aggregate 간에는 Eventual Consistency를 수용하는 게 대부분 맞다.
+
+## Cross-Aggregate 이벤트 전체 지도
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Cross-Aggregate Event Communication Map</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem'}}>
+    {[
+      {from: 'Posting', event: 'PostingCreatedEvent', to: 'Step', action: '기본 전형 자동 생성', color: '#a78bfa'},
+      {from: 'Posting', event: 'PostingCreatedEvent', to: 'Posting', action: '기본 지원서 양식 생성', color: '#a78bfa'},
+      {from: 'Posting', event: 'PostingCreatedEvent', to: 'Posting', action: '검색용 데이터 생성', color: '#a78bfa'},
+      {from: 'Posting', event: 'PostingDeletedEvent', to: 'Step', action: '전형 전체 삭제', color: '#ef4444'},
+      {from: 'Posting', event: 'PostingDeletedEvent', to: 'Applicant', action: '지원자 전체 삭제', color: '#ef4444'},
+      {from: 'Posting', event: 'PostingDeletedEvent', to: 'Posting', action: '검색 데이터 + 지원서 삭제', color: '#ef4444'},
+      {from: 'Applicant', event: 'ApplicantAppliedEvent', to: 'Posting', action: '지원자 수 통계 sync', color: '#38bdf8'},
+      {from: 'Message', event: 'MessageByRecruiterSentEvent', to: 'Notification', action: '카카오 알림톡 발송', color: '#34d399'},
+      {from: 'Message', event: 'MessageByRecruiterSentEvent', to: 'Applicant', action: '메시지 수신 이메일', color: '#34d399'},
+      {from: 'Office', event: 'OfficeCreatedEvent', to: 'Posting', action: '기본 채용 공고 생성', color: '#f59e0b'},
+      {from: 'Order', event: 'PaymentCompletedEvent', to: 'Cart', action: '장바구니 아이템 상태 변경', color: '#a78bfa'},
+    ].map(({from, event, to, action, color}) => (
+      <div key={event+to+action} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.5rem 1rem', display: 'grid', gridTemplateColumns: '80px 1fr 30px 1fr', gap: '0.5rem', alignItems: 'center'}}>
+        <span style={{color: color, fontSize: '0.75rem', fontWeight: 600}}>{from}</span>
+        <span style={{color: '#8b949e', fontSize: '0.65rem', fontFamily: 'monospace'}}>{event}</span>
+        <span style={{color: '#475569', textAlign: 'center'}}>{'>'}</span>
+        <span style={{color: '#c9d1d9', fontSize: '0.75rem'}}><span style={{color: '#34d399'}}>{to}</span>: {action}</span>
+      </div>
+    ))}
+  </div>
+  <div style={{color: '#6b7280', fontSize: '0.65rem', marginTop: '0.75rem', textAlign: 'center'}}>모든 Cross-Aggregate 이벤트는 AFTER_COMMIT + @Async</div>
+</div>
+
+이 지도를 만들어놓고 보니 패턴이 보인다.
+
+**PostingCreatedEvent**가 가장 많은 리스너를 깨운다 (3개). 공고 하나 만들면 전형, 지원서 양식, 검색 데이터가 따라서 만들어진다. **PostingDeletedEvent**는 더 많다 (3개). 삭제는 항상 생성보다 복잡하다.
+
+그리고 방향이 전부 **한쪽**이다. Posting → Step이지 Step → Posting이 아니다. Applicant → Posting(통계 sync)이지 Posting → Applicant(조회)가 아니다. 이벤트로 통신하면 자연스럽게 단방향 의존이 강제된다.
+
+## 이벤트를 안 쓸 때
+
+모든 Aggregate 간 통신을 이벤트로 해야 하는 건 아니다. 이벤트가 **과할 때**도 있다.
+
+<Callout type="tip" title="이벤트 vs 직접 호출 판단 기준">
+읽기 전용(조회)이면 직접 호출이 낫다. 지원자 상세 페이지에서 전형 정보를 보여줄 때 "지원자가 전형을 조회한 이벤트"를 발행하는 건 과하다. 그냥 StepService를 호출하면 된다. 이벤트는 **상태를 변경하는 부수효과**에 적합하다.
+</Callout>
+
+또 하나, 이벤트가 2~3개 수준이면 직접 호출이 더 명확할 수 있다. 이벤트의 가치는 **부수효과가 늘어날수록** 빛난다. 부수효과가 1개뿐이라면 이벤트 도입의 복잡성이 이점보다 클 수 있다. 우리도 처음부터 이벤트를 쓴 게 아니라, UseCase가 뚱뚱해지는 고통을 겪고 나서 도입했다.
+
+## 4편을 마치며 — 돌아보기
+
+4편에 걸쳐서 도메인 이벤트를 도입한 여정을 정리했다. 교과서 순서와는 좀 달랐다. 우리는 이론부터 시작한 게 아니라, **문제를 먼저 겪고 해결책을 찾아간** 순서였다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>시리즈 요약: 겪은 문제와 배운 것</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem'}}>
+    {[
+      {num: '1편', problem: 'UseCase가 80줄로 비대해짐', solution: '부수효과를 이벤트로 분리 → 15줄로 축소', color: '#a78bfa'},
+      {num: '2편', problem: '검색에서 지원자가 간헐적으로 사라짐', solution: 'BEFORE_COMMIT으로 데이터 일관성 확보', color: '#38bdf8'},
+      {num: '3편', problem: '삭제 시 중복 표시가 안 풀리는 버그', solution: '삭제/수정 이벤트에도 중복 재계산 리스너 추가', color: '#34d399'},
+      {num: '4편', problem: 'Posting ↔ Step 순환 의존', solution: '이벤트로 단방향 의존으로 전환', color: '#f59e0b'},
+    ].map(({num, problem, solution, color}) => (
+      <div key={num} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '1rem', display: 'grid', gridTemplateColumns: '50px 1fr', gap: '1rem', alignItems: 'center'}}>
+        <div style={{color: color, fontWeight: 700, fontSize: '0.9rem', textAlign: 'center'}}>{num}</div>
+        <div>
+          <div style={{color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.25rem'}}>{problem}</div>
+          <div style={{color: '#34d399', fontSize: '0.8rem'}}>{solution}</div>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+몇 가지 원칙을 정리하며 마무리한다.
+
+**이벤트는 "이미 일어난 사실"이다.** 과거형으로 이름 짓고, 이벤트 안에 리스너가 필요로 하는 데이터를 담는다. 같은 JVM 내 메모리 전달이므로 DTO를 통째로 넣어도 괜찮다.
+
+**BEFORE_COMMIT은 정말 필요할 때만.** 대부분의 이벤트 리스너는 AFTER_COMMIT이 맞다. "이게 실패하면 메인 로직도 실패해야 하는가?"에 "예"라고 답할 수 있을 때만 BEFORE_COMMIT을 쓴다.
+
+**AFTER_COMMIT에서는 반드시 try-catch.** 비동기 스레드에서 예외가 조용히 사라지면 운영 중 문제를 추적할 수 없다. 이벤트 이름, 관련 ID와 함께 에러 로그를 남긴다.
+
+**이벤트는 흐름을 숨긴다.** 이게 가장 큰 트레이드오프다. UseCase만 봐서는 어떤 부수효과가 발생하는지 알 수 없다. 이벤트-리스너 매핑 지도를 관리하는 게 중요하다. 이 시리즈에 나온 시각화 같은 걸 README나 위키에 넣어두면 새 팀원 온보딩에도 도움이 된다.
+
+**모든 것을 이벤트로 만들지 않는다.** 조회는 직접 호출이 낫고, 부수효과가 1개뿐이면 이벤트의 복잡성이 이점을 넘을 수 있다. UseCase가 뚱뚱해지기 시작할 때, 그때 이벤트를 도입해도 늦지 않다.

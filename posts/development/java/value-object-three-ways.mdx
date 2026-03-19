@@ -1,0 +1,276 @@
+---
+title: "Value Object 3가지 구현법: Record vs Embeddable vs 커스텀 검증"
+date: 2024-11-04
+description: "모든 VO를 Record로 통일하려다 JPA와 충돌하고, 검증 규칙 변경이 기존 데이터를 깨뜨린 뒤 3가지 방식을 공존시킨 이야기"
+summary: "Record, @Embeddable, validate() 분리 — 각각의 벽에 부딪히며 찾은 선택 기준"
+categories:
+  - Development
+  - Java
+tags:
+  - Value Object
+  - Domain Driven Design
+  - Java
+  - JPA
+---
+
+DDD 책을 읽으면 Value Object가 정말 간단해 보인다. "불변이고, 값으로 비교하고, 비즈니스 의미를 담는 객체." Java Record를 쓰면 끝 아닌가? 그렇게 생각하고 프로젝트에 적용하다가 벽을 만났다.
+
+## Record로 다 해결하려 했다
+
+ATS에서 자소서 답변을 Value Object로 만들 때, Record가 완벽했다.
+
+```java
+public record CoverLetterAnswerValue(
+    CoverLetterType type,
+    List<QuestionAnswer> answers
+) {
+    // Compact Constructor — 생성 시점에 검증
+    public CoverLetterAnswerValue {
+        if (type == CoverLetterType.TEXT) {
+            validateTextAnswers(answers);
+        }
+    }
+
+    private static void validateTextAnswers(final List<QuestionAnswer> answers) {
+        answers.forEach(answer -> {
+            if (answer.question() == null || answer.question().isBlank()) {
+                throw new IllegalArgumentException("Question must not be blank");
+            }
+        });
+    }
+
+    public record QuestionAnswer(String question, String answer) {}
+}
+```
+
+불변성 자동 보장, equals/hashCode 자동 생성, 보일러플레이트 제로. "앞으로 모든 VO를 Record로 만들어야겠다"고 생각했다. 그 자신감이 깨지는 데는 하루도 안 걸렸다.
+
+## 벽에 부딪힌 순간: Record + JPA
+
+면접 일정의 시작/종료 시간을 VO로 만들려고 했다. 그런데 이건 JPA Entity의 컬럼으로 직접 저장되어야 했다. `@Embeddable`로 만들면 되겠지, 하고 Record에 `@Embeddable`을 붙였다.
+
+```java
+// 이렇게 하려고 했다 — 실패
+@Embeddable
+public record ScheduleDateValue(
+    LocalDateTime startAt,
+    LocalDateTime endAt
+) {}
+```
+
+<Callout type="error" title="JPA가 Record를 거부했다">
+JPA는 `@Embeddable` 객체에 기본 생성자(no-arg constructor)를 요구한다. Record는 설계 상 기본 생성자가 없다. Hibernate 6에서 일부 지원이 추가되었지만, 우리 프로젝트 환경에서는 안정적으로 동작하지 않았다. DB에서 Entity를 로드할 때 간헐적으로 `InstantiationException`이 터졌다.
+</Callout>
+
+그래서 다시 클래스 기반 `@Embeddable`로 돌아갔다. 하지만 단순히 돌아간 게 아니라, 생성자에서 비즈니스 규칙을 강제하는 방식으로 만들었다.
+
+## 방식 2: @Embeddable + 생성자 검증 -- ScheduleDateValue
+
+```java
+@Embeddable
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA 요구사항
+public class ScheduleDateValue {
+
+    private LocalDateTime startAt;
+    private LocalDateTime endAt;
+    private long duration; // 분 단위
+
+    public ScheduleDateValue(final LocalDateTime startAt, final LocalDateTime endAt) {
+        validate(startAt, endAt);
+        this.startAt = startAt;
+        this.endAt = endAt;
+        this.duration = ChronoUnit.MINUTES.between(startAt, endAt);
+    }
+
+    private void validate(final LocalDateTime startAt, final LocalDateTime endAt) {
+        if (startAt.isAfter(endAt)) {
+            throw new IllegalArgumentException("startAt must be before endAt");
+        }
+        if (startAt.isEqual(endAt)) {
+            throw new IllegalArgumentException("startAt and endAt must be different");
+        }
+    }
+}
+```
+
+`NoArgsConstructor(access = PROTECTED)`가 포인트다. JPA가 리플렉션으로 객체를 만들 수 있게 해주면서도, 비즈니스 코드에서는 반드시 시작/종료 시간을 넣어야만 생성할 수 있다. 생성자에서 "시작 시간이 종료 시간보다 뒤"인 경우를 차단한다.
+
+<Callout type="info" title="duration을 왜 DB에 저장하는가">
+`duration`은 `startAt`과 `endAt`에서 파생되는 값이다. 매번 계산해도 되지만, DB에 저장해두면 QueryDSL에서 `duration` 기준 정렬이나 필터가 가능해진다. "30분 이상인 면접만 조회" 같은 쿼리가 간단해진다.
+</Callout>
+
+Entity에서는 이렇게 사용한다.
+
+```java
+@Entity
+public class ScheduleEntity extends StringIdBaseAuditing {
+
+    @Embedded
+    private ScheduleDateValue scheduleDate;
+
+    private String title;
+    private String location;
+}
+```
+
+여기까지는 괜찮았다. 그런데 세 번째 벽이 왔다.
+
+## 또 다른 벽: 생성자 검증이 DB 로드를 깨뜨린다
+
+커스텀 지원서 항목을 VO로 만들 때였다. 항목의 `type`에 따라 검증 규칙이 다른데(TEXT는 빈 값 불가, SELECT는 옵션 중 하나만, MULTI_SELECT는 옵션 내에서 복수 선택), 이걸 생성자에서 검증하면 큰 문제가 있었다.
+
+**JPA가 DB에서 Entity를 로드할 때도 검증이 실행된다.** 만약 운영 중에 검증 규칙이 바뀌면? 이미 저장된 데이터가 새 규칙에 맞지 않아서 Entity 조회 자체가 실패한다. 실제로 SELECT 타입의 옵션 목록을 변경한 뒤, 기존 지원자 데이터를 읽을 때 `InvalidAnswerException`이 터졌다.
+
+## 방식 3: @Embeddable + validate() 분리 -- CustomAnswerValue
+
+```java
+@Embeddable
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class CustomAnswerValue {
+
+    private String type;
+    private String name;
+
+    @Convert(converter = StringListConverter.class)
+    private List<String> options;
+
+    @Convert(converter = StringListConverter.class)
+    private List<String> answers;
+
+    public void validate() {
+        switch (CustomItemType.valueOf(type)) {
+            case TEXT -> validateText();
+            case SELECT -> validateSelect();
+            case MULTI_SELECT -> validateMultiSelect();
+            case FILE -> validateFile();
+        }
+    }
+
+    private void validateText() {
+        if (answers == null || answers.isEmpty()) {
+            throw new InvalidAnswerException("Text answer is required");
+        }
+    }
+
+    private void validateSelect() {
+        if (answers.size() != 1) {
+            throw new InvalidAnswerException("Select must have exactly one answer");
+        }
+        if (!options.contains(answers.get(0))) {
+            throw new InvalidAnswerException("Answer must be one of the options");
+        }
+    }
+
+    private void validateMultiSelect() {
+        if (!options.containsAll(answers)) {
+            throw new InvalidAnswerException("All answers must be in options");
+        }
+    }
+
+    private void validateFile() {
+        // 파일 관련 검증
+    }
+}
+```
+
+핵심은 **검증이 생성자가 아닌 `validate()` 메서드에 있다**는 것이다. DB에서 로드할 때는 검증을 건너뛰고, 새 데이터를 저장할 때만 명시적으로 `validate()`를 호출한다.
+
+같은 패턴이 `PaperAnswerValue`에도 적용됐다. 서류 제출에서 파일 ID와 URL은 상호배제 관계인데, 이것도 validate()로 분리했다.
+
+```java
+@Embeddable
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class PaperAnswerValue {
+
+    private String fileId;
+    private String url;
+
+    public void validate() {
+        final boolean hasFile = fileId != null && !fileId.isBlank();
+        final boolean hasUrl = url != null && !url.isBlank();
+
+        if (hasFile && hasUrl) {
+            throw new InvalidAnswerException("Cannot have both fileId and url");
+        }
+        if (!hasFile && !hasUrl) {
+            throw new InvalidAnswerException("Either fileId or url is required");
+        }
+    }
+}
+```
+
+<Callout type="warning" title="validate() 호출을 까먹으면?">
+이 방식의 약점이다. Service에서 `validate()` 호출을 빼먹으면 잘못된 데이터가 저장될 수 있다. 우리는 UseCase에서 Entity를 저장하기 직전에 반드시 `validate()`를 호출하도록 컨벤션을 정했고, 코드 리뷰에서 이 부분을 체크했다.
+</Callout>
+
+## 한눈에 보는 3가지 방식
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1rem 0'}}>Value Object Implementation Comparison</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem'}}>
+    {[
+      {
+        name: 'Java Record',
+        example: 'CoverLetterAnswerValue',
+        pros: ['불변성 자동 보장', 'equals/hashCode 자동', '보일러플레이트 제로'],
+        cons: ['JPA Entity에 직접 매핑 어려움'],
+        color: '#38bdf8'
+      },
+      {
+        name: '@Embeddable',
+        example: 'ScheduleDateValue',
+        pros: ['JPA Entity에 임베드 가능', '생성자 검증으로 불변 규칙 강제'],
+        cons: ['기본 생성자 필요 (JPA)'],
+        color: '#a78bfa'
+      },
+      {
+        name: '@Embeddable + validate()',
+        example: 'CustomAnswerValue',
+        pros: ['복잡한 비즈니스 규칙 캡슐화', '타입별 검증 분기 가능'],
+        cons: ['검증 시점 관리 필요'],
+        color: '#34d399'
+      },
+    ].map(({name, example, pros, cons, color}) => (
+      <div key={name} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: color, fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.25rem'}}>{name}</div>
+        <div style={{color: '#6b7280', fontSize: '0.7rem', marginBottom: '0.75rem'}}>{example}</div>
+        <div style={{fontSize: '0.75rem'}}>
+          {pros.map((p, i) => (
+            <div key={i} style={{color: '#6ee7b7', marginBottom: '0.3rem'}}>+ {p}</div>
+          ))}
+          {cons.map((c, i) => (
+            <div key={i} style={{color: '#fca5a5', marginBottom: '0.3rem'}}>- {c}</div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+## 선택 기준: 의사결정 과정
+
+결국 VO 구현 방식을 정하는 질문은 두 개뿐이었다.
+
+<Steps>
+  <Step title="이 VO가 JPA Entity에 매핑되는가?">
+    아니라면 Record를 쓴다. API 요청/응답, 서비스 간 데이터 전달 같은 상황이다. Record가 가장 간결하고 안전하다.
+  </Step>
+  <Step title="검증 규칙이 시간이 지나도 변하지 않는가?">
+    "시작 시간 < 종료 시간" 같은 물리적 불변 규칙이면 생성자 검증이 맞다. DB에서 로드할 때도 검증이 실행되어야 더 안전하다.
+  </Step>
+  <Step title="검증 규칙이 비즈니스에 따라 바뀔 수 있는가?">
+    커스텀 항목의 옵션 변경처럼 운영 중 규칙이 바뀌면, validate()를 분리해서 저장 시점에만 검증한다. 기존 데이터를 깨뜨리면 안 되니까.
+  </Step>
+</Steps>
+
+| 상황 | 추천 방식 |
+|------|---------|
+| JPA 매핑 불필요 (DTO, API 모델) | Java Record |
+| JPA Entity에 임베드 + 물리적 불변 규칙 | @Embeddable + 생성자 검증 |
+| JPA Entity에 임베드 + 비즈니스 규칙이 바뀔 수 있음 | @Embeddable + validate() |
+
+돌이켜보면 "모든 VO를 Record로 통일하자"는 생각이 가장 위험했다. JPA라는 현실, 검증 규칙의 변경 가능성이라는 현실을 무시한 채 이상적인 구현에 집착했기 때문이다. 세 가지 방식이 공존하는 게 지저분해 보일 수 있지만, 각각의 상황에 맞는 도구를 선택한 결과이고, 팀에서는 위 표를 기준으로 일관되게 결정하고 있다.

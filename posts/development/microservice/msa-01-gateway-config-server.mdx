@@ -1,0 +1,346 @@
+---
+title: "API Gateway 필터와 Config Server로 마이크로서비스 관문 만들기"
+date: 2025-07-14
+description: "DB 비밀번호 하나 바꾸려고 3개 서비스를 재배포하다 장애를 낸 경험에서 시작된 Config Server 도입기, 그리고 Gateway 필터에서 만난 IP 추출 버그까지"
+summary: "설정 파일 복붙의 끝에서 만난 30분 장애, 그리고 Spring Cloud Gateway와 Config Server + Kafka Bus로 해결한 이야기"
+series: "Spring Cloud로 마이크로서비스 인프라 구축하기"
+categories:
+  - Development
+  - Microservice
+tags:
+  - Spring Cloud
+  - API Gateway
+  - Config Server
+  - Kafka
+---
+
+## 장애에서 시작된 이야기
+
+sofac과 commerce, 두 개의 비즈니스 서비스를 운영하고 있었다. 각 서비스마다 `application.yml`을 따로 관리하고 있었는데, 처음에는 별 문제가 없었다. 서비스가 하나일 때는 그게 자연스러운 구조였으니까.
+
+문제는 DB 비밀번호 변경 때 터졌다.
+
+보안팀에서 분기마다 DB 비밀번호를 변경하라는 정책이 내려왔다. sofac 서비스의 `application.yml`을 수정하고, commerce 서비스의 `application.yml`도 수정하고, gateway까지 — 3개 서비스를 모두 재배포했다. 그런데 **commerce 서비스의 비밀번호를 이전 값으로 넣어버렸다**. 복붙하면서 잘못된 라인을 복사한 거다.
+
+배포는 정상적으로 끝난 것처럼 보였다. 하지만 commerce 서비스에서 주문 조회가 전부 500 에러를 뱉기 시작했다. DB 커넥션 실패. 30분 동안 commerce 서비스가 먹통이었다.
+
+<Callout type="error" title="30분 장애의 원인">
+3개 서비스의 application.yml에 흩어져 있던 DB 비밀번호를 수동으로 수정하다가, commerce 서비스에 이전 비밀번호를 넣었다. 배포 파이프라인은 정상 통과했지만 런타임에 커넥션 풀이 전부 실패했다.
+</Callout>
+
+이 사건 이후 두 가지를 결정했다. **설정을 한 곳에서 관리하는 Config Server**, 그리고 **모든 트래픽이 통과하는 단일 진입점 Gateway**.
+
+---
+
+## Part 1: Config Server — 설정의 중앙 집권화
+
+### 처음 구조: 서비스마다 각자 관리
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
+    <div>
+      <div style={{color: '#ef4444', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem'}}>Before — 장애 당시 구조</div>
+      <div style={{background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: '#fca5a5', fontSize: '0.8rem', lineHeight: 1.8}}>sofac/application.yml — DB 비밀번호 A</div>
+        <div style={{color: '#fca5a5', fontSize: '0.8rem', lineHeight: 1.8}}>commerce/application.yml — DB 비밀번호 B (!!)</div>
+        <div style={{color: '#fca5a5', fontSize: '0.8rem', lineHeight: 1.8}}>gateway/application.yml — DB 비밀번호 A</div>
+        <div style={{color: '#ef4444', fontSize: '0.7rem', marginTop: '0.5rem', fontStyle: 'italic'}}>비밀번호 불일치 → 30분 장애</div>
+      </div>
+    </div>
+    <div>
+      <div style={{color: '#10b981', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem'}}>After — Config Server 도입 후</div>
+      <div style={{background: '#0a1a14', border: '1px solid #065f46', borderRadius: '8px', padding: '1rem'}}>
+        <div style={{color: '#6ee7b7', fontSize: '0.8rem', lineHeight: 1.8}}>Git 저장소 configs/ 한 곳에서 관리</div>
+        <div style={{color: '#6ee7b7', fontSize: '0.8rem', lineHeight: 1.8}}>Kafka Bus로 전체 서비스에 동시 전파</div>
+        <div style={{color: '#6ee7b7', fontSize: '0.8rem', lineHeight: 1.8}}>Git 커밋 히스토리로 변경 추적</div>
+        <div style={{color: '#34d399', fontSize: '0.7rem', marginTop: '0.5rem', fontStyle: 'italic'}}>비밀번호 변경 = Git Push 1회</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+### Config Server 설정
+
+Config Server의 핵심은 간단하다. Git 저장소에 설정 파일을 두고, 각 서비스가 기동할 때 Config Server에서 설정을 가져간다.
+
+```yaml
+server:
+  port: 8888
+
+spring:
+  cloud:
+    config:
+      server:
+        git:
+          uri: git@github.com:muhayu/sofac-ats.git
+          private-key: ${application.private-key}
+          default-label: dev
+          search-paths:
+            - configs
+    bus:
+      destination: sofac.ai.config-event-update
+  kafka:
+    bootstrap-servers: 115.68.158.30:9092,115.68.158.31:9092,115.68.158.32:9092
+
+management:
+  server:
+    port: 9888
+  endpoints:
+    web:
+      exposure:
+        include: health, busrefresh
+```
+
+여기서 주목할 포인트가 몇 가지 있다.
+
+### 관리 포트 분리 — 9888 vs 8888
+
+비즈니스 포트(8888)와 관리 포트(9888)를 분리했다. 처음에는 같은 포트에서 모든 엔드포인트를 열었다. 그런데 `/busrefresh` 같은 관리 엔드포인트가 외부에서 접근 가능하다는 걸 보안 점검에서 지적받았다. 누군가 `/busrefresh`를 반복 호출하면 모든 서비스가 계속 설정을 다시 로드하게 된다.
+
+9888 포트는 내부 네트워크에서만 접근 가능하게 방화벽을 설정했다. 배포 파이프라인에서만 `/busrefresh`를 호출할 수 있다.
+
+### Kafka Bus — 왜 단순 webhook이 아닌가
+
+설정이 바뀌면 모든 서비스에 전파해야 한다. 처음에는 각 서비스에 직접 `/refresh`를 호출하는 스크립트를 생각했다. 서비스가 2개일 때는 괜찮지만, 인스턴스가 늘어나면 호출 대상을 하드코딩해야 한다.
+
+Kafka Bus를 쓰면 Config Server가 `sofac.ai.config-event-update` 토픽에 이벤트를 한 번 발행하고, 모든 서비스가 알아서 구독하고 리프레시한다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.5rem 0'}}>Config Refresh Flow</p>
+
+  <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.4rem', maxWidth: '500px', margin: '0 auto'}}>
+    {[
+      {label: '1. Git Push', color: '#8b949e', desc: 'configs/*.yml 수정 후 Push'},
+      {label: '2. POST /busrefresh', color: '#38bdf8', desc: 'CI/CD가 Config Server 9888 포트로 호출'},
+      {label: '3. Kafka 이벤트 발행', color: '#a78bfa', desc: 'sofac.ai.config-event-update 토픽'},
+      {label: '4. 각 서비스가 이벤트 수신', color: '#f59e0b', desc: 'Sofac, Commerce, Gateway 동시 수신'},
+      {label: '5. @RefreshScope 빈 재생성', color: '#34d399', desc: '변경된 설정으로 빈 교체 — 재배포 없음'},
+    ].map(({label, color, desc}, i) => (
+      <div key={i}>
+        {i > 0 && <div style={{textAlign: 'center', color: '#30363d', fontSize: '0.75rem', padding: '0.1rem'}}>↓</div>}
+        <div style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <span style={{color: color, fontWeight: 600, fontSize: '0.85rem'}}>{label}</span>
+          <span style={{color: '#8b949e', fontSize: '0.75rem'}}>{desc}</span>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+### fail-fast: false — 일부러 느슨하게 만든 이유
+
+클라이언트 서비스의 Config Server 연결 설정에서 가장 고민했던 부분이다.
+
+```yaml
+spring:
+  config:
+    import: optional:configserver:http://config-server:8888
+  cloud:
+    bus:
+      destination: sofac.ai.config-event-update
+    config:
+      fail-fast: false
+      retry:
+        max-attempts: 3
+```
+
+`fail-fast: true`로 하면 Config Server에 접속할 수 없을 때 서비스 자체가 기동되지 않는다. 안전해 보이지만 실은 위험하다. Config Server를 재시작하거나 네트워크 순단이 발생하면 **모든 서비스가 동시에 죽는** 장애 전파가 일어난다.
+
+`fail-fast: false`로 두면 Config Server에 연결 실패해도 로컬 `application.yml`의 설정으로 서비스가 먼저 뜬다. Config Server가 복구되면 다음 `/busrefresh` 때 최신 설정이 반영된다.
+
+<Callout type="warning" title="fail-fast: false의 트레이드오프">
+Config Server의 설정이 반드시 필요한 값(예: 암호화 키)이 있다면 서비스가 불완전한 상태로 뜰 수 있다. 우리는 이런 필수 설정은 환경변수로 주입하고, Config Server에는 런타임에 변경 가능한 설정만 두는 것으로 정리했다.
+</Callout>
+
+---
+
+## Part 2: Gateway 필터 — 단일 진입점의 함정들
+
+### GlobalFilter — Pre/Post 로깅 분리
+
+Config Server를 도입한 다음으로 한 건 Gateway 구축이었다. 모든 요청이 Gateway를 통과하게 만들면 로깅, 인증, IP 제어를 한곳에서 처리할 수 있다.
+
+```java
+@Component
+@Slf4j
+public class GlobalFilter extends AbstractGatewayFilterFactory<GlobalFilter.Config> {
+
+    public GlobalFilter() {
+        super(Config.class);
+    }
+
+    @Override
+    public GatewayFilter apply(final Config config) {
+        return ((exchange, chain) -> {
+            final ServerHttpRequest request = exchange.getRequest();
+            final ServerHttpResponse response = exchange.getResponse();
+
+            if (config.isPreLogger()) {
+                final String host = HttpUtils.getHost(exchange);
+                final String ip = HttpUtils.getIp(exchange);
+                log.info("Global Filter Start : request id = {}, host = {}, ip = {}",
+                    request.getId(), host, ip);
+            }
+
+            return chain.filter(exchange).then(Mono.fromRunnable(() -> {
+                if (config.isPostLogger()) {
+                    log.info("Global Filter End : response code = {}",
+                        response.getStatusCode());
+                }
+            }));
+        });
+    }
+
+    @Data
+    public static class Config {
+        private String baseMessage;
+        private boolean preLogger;
+        private boolean postLogger;
+    }
+}
+```
+
+Pre/Post 로깅을 YAML 설정으로 켜고 끌 수 있게 만든 건 의도적이었다. 운영 중에 디버깅이 필요할 때 Post 로깅만 켜고, 평소에는 Pre 로깅만 남기는 식으로 쓰고 있다. 이 설정도 Config Server를 통해 재배포 없이 변경할 수 있다.
+
+### IpFilter — 관리자 API 보호
+
+```java
+@Component
+@Slf4j
+public class IpFilter extends AbstractGatewayFilterFactory<IpFilter.Config> {
+
+    @Override
+    public GatewayFilter apply(final Config config) {
+        return ((exchange, chain) -> {
+            final String clientIp = HttpUtils.getIp(exchange);
+
+            if (!isAllowedIp(config.getAllowedIps(), clientIp)) {
+                log.warn("Blocked request from IP: {}", clientIp);
+                exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                return exchange.getResponse().setComplete();
+            }
+            return chain.filter(exchange);
+        });
+    }
+}
+```
+
+관리자 API(`/api/sofac/admin/**`)는 사무실 IP에서만 접근 가능하게 제한했다. 처음에는 잘 동작했다.
+
+### X-Forwarded-For 버그 — 로컬에서는 되고 운영에서는 안 되는 IP
+
+**운영에 배포한 다음 날, 관리자 페이지에 아무도 접속할 수 없다는 제보가 들어왔다.**
+
+로컬에서 테스트할 때는 `request.getRemoteAddress()`로 클라이언트 IP가 정상적으로 잡혔다. 하지만 운영 환경에는 L4 로드밸런서가 앞에 있었다. 모든 요청의 `remoteAddress`가 로드밸런서의 내부 IP인 `10.0.0.1`로 찍혔다.
+
+IpFilter가 `10.0.0.1`을 허용 IP 목록에서 찾지 못하니까 모든 관리자 요청이 403으로 차단된 거다.
+
+```java
+// 수정 전 — remoteAddress만 확인
+public static String getIp(final ServerWebExchange exchange) {
+    return Optional.ofNullable(exchange.getRequest().getRemoteAddress())
+        .map(addr -> addr.getAddress().getHostAddress())
+        .orElse("unknown");
+}
+
+// 수정 후 — X-Forwarded-For 우선 확인
+public static String getIp(final ServerWebExchange exchange) {
+    final ServerHttpRequest request = exchange.getRequest();
+    final String xForwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
+
+    if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+        return xForwardedFor.split(",")[0].trim();
+    }
+    return Optional.ofNullable(request.getRemoteAddress())
+        .map(addr -> addr.getAddress().getHostAddress())
+        .orElse("unknown");
+}
+```
+
+`X-Forwarded-For` 헤더에는 `클라이언트IP, 프록시1, 프록시2` 형태로 값이 들어온다. 첫 번째 값이 실제 클라이언트 IP다. `split(",")[0]`으로 잘라내는 한 줄이 30분짜리 디버깅의 결론이었다.
+
+<Callout type="tip" title="로드밸런서 뒤에서 IP 추출할 때">
+`X-Forwarded-For`는 클라이언트가 위조할 수도 있다. 프록시 체인이 신뢰할 수 있는 환경에서만 첫 번째 값을 사용하고, 그렇지 않다면 `X-Real-IP` 헤더나 프록시 서버 설정에서 신뢰할 수 있는 IP 범위를 지정해야 한다.
+</Callout>
+
+### 라우팅 설정 — lb://로 Eureka 연동
+
+```yaml
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: sofac-service
+          uri: lb://SOFAC
+          predicates:
+            - Path=/api/sofac/**
+          filters:
+            - name: GlobalFilter
+              args:
+                baseMessage: sofac-service
+                preLogger: true
+                postLogger: true
+
+        - id: commerce-service
+          uri: lb://COMMERCE
+          predicates:
+            - Path=/api/commerce/**
+          filters:
+            - name: GlobalFilter
+              args:
+                baseMessage: commerce-service
+                preLogger: true
+                postLogger: true
+```
+
+<Callout type="info" title="lb:// 프로토콜">
+`lb://SOFAC`는 Eureka에 등록된 서비스명으로 로드밸런싱한다는 의미다. 서비스 인스턴스 IP를 하드코딩할 필요가 없다. 인스턴스가 늘거나 줄어도 Gateway가 자동으로 분배한다.
+</Callout>
+
+---
+
+## 전체 아키텍처 — 장애를 겪은 후의 구조
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0', fontSize: '0.875rem'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.5rem 0'}}>Microservice Infrastructure — After</p>
+
+  <div style={{display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap'}}>
+    {[
+      {name: 'Client', desc: 'HTTP Request', border: '#8b949e', bg: '#161b22', text: '#e6edf3'},
+      null,
+      {name: 'Gateway', desc: 'GlobalFilter + IpFilter', border: '#7c3aed', bg: '#0a1628', text: '#a78bfa'},
+      null,
+      {name: 'Eureka', desc: 'Service Discovery', border: '#059669', bg: '#0a1a14', text: '#34d399'},
+      null,
+      {name: 'Sofac / Commerce', desc: 'Business Services', border: '#1d4ed8', bg: '#0f1729', text: '#93c5fd'},
+    ].map((item, i) => item === null ? (
+      <div key={i} style={{color: '#475569', fontSize: '1rem'}}>→</div>
+    ) : (
+      <div key={i} style={{background: item.bg, border: `1px solid ${item.border}`, borderRadius: '8px', padding: '0.6rem 1rem', textAlign: 'center', minWidth: '120px'}}>
+        <div style={{color: item.text, fontWeight: 600, fontSize: '0.85rem'}}>{item.name}</div>
+        <div style={{color: '#475569', fontSize: '0.65rem', marginTop: '2px'}}>{item.desc}</div>
+      </div>
+    ))}
+  </div>
+
+  <div style={{display: 'flex', justifyContent: 'center', marginTop: '1rem', gap: '0.75rem', flexWrap: 'wrap'}}>
+    <div style={{background: '#1a1400', border: '1px solid #78350f', borderRadius: '8px', padding: '0.5rem 1rem', textAlign: 'center'}}>
+      <div style={{color: '#fcd34d', fontWeight: 600, fontSize: '0.8rem'}}>Config Server :8888</div>
+      <div style={{color: '#475569', fontSize: '0.65rem'}}>Git 저장소 기반 설정 관리</div>
+    </div>
+    <div style={{background: '#1a0a1a', border: '1px solid #581c87', borderRadius: '8px', padding: '0.5rem 1rem', textAlign: 'center'}}>
+      <div style={{color: '#c084fc', fontWeight: 600, fontSize: '0.8rem'}}>Kafka Bus</div>
+      <div style={{color: '#475569', fontSize: '0.65rem'}}>sofac.ai.config-event-update 토픽으로 전파</div>
+    </div>
+  </div>
+</div>
+
+---
+
+## 되돌아보며
+
+DB 비밀번호 하나 잘못 복붙해서 30분 장애를 겪은 게 이 모든 구조의 시작이었다. Config Server를 도입하고, Kafka Bus로 설정 전파를 자동화하고, Gateway로 진입점을 통일한 뒤에는 같은 유형의 장애가 한 번도 발생하지 않았다.
+
+다만 Gateway를 거치면서 새로운 종류의 버그를 만나게 된다. 로드밸런서 뒤에서 IP가 안 잡히는 문제처럼, 인프라 레이어가 하나 늘어날 때마다 생각지 못한 곳에서 문제가 터진다. 중요한 건 그런 문제를 **Gateway 한 곳에서** 해결할 수 있다는 점이다. 각 비즈니스 서비스는 자기 도메인 로직에만 집중하면 된다.
+
+다음 편에서는 서비스가 늘어나면서 겪은 또 다른 문제 — **코드 복붙의 끝에서 만난 응답 포맷 불일치**와 멀티 모듈 Gradle로 해결한 과정을 다룬다.
