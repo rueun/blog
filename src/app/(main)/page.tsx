@@ -1,6 +1,7 @@
 import { getAllPostMetas, getAllSeries } from '@/lib/posts'
 import Link from 'next/link'
 import type { PostMeta } from '@/lib/types'
+import TypingTags from '@/components/TypingTags'
 
 function getCategoryColor(categories: string[]): string {
   const cat = (categories?.[0] ?? '').toLowerCase()
@@ -47,8 +48,8 @@ export default function Home() {
   return (
     <>
       {/* Hero Section */}
-      <section className="min-h-[calc(100vh-3.5rem)] flex items-center px-6 sm:px-12 lg:px-16 max-w-7xl mx-auto">
-        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16 w-full py-16">
+      <section className="min-h-0 lg:min-h-[calc(100vh-3.5rem)] flex items-center px-6 sm:px-12 lg:px-16 max-w-7xl mx-auto">
+        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16 w-full py-12 sm:py-16">
           {/* Left column */}
           <div className="flex-1 max-w-xl">
             {/* Eyebrow */}
@@ -58,48 +59,56 @@ export default function Home() {
             </div>
 
             {/* Title */}
-            <h1 className="text-4xl sm:text-5xl font-black text-[#e6edf3] leading-tight tracking-tight mb-0">
-              백엔드 개발자
+            <h1 className="text-xl sm:text-2xl font-bold text-[#e6edf3] leading-tight tracking-tight mb-3">
+              맥락을 읽는 개발자
             </h1>
-            <h1 className="text-4xl sm:text-5xl font-black leading-tight tracking-tight mb-4">
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#a78bfa] to-[#ec4899]">
-                #Rueun
-              </span>
-              <span
-                className="inline-block w-0.5 h-9 bg-[#10b981] rounded-sm align-middle ml-1 cursor-blink"
-                style={{ boxShadow: '0 0 10px rgba(16,185,129,0.4)' }}
-              />
-            </h1>
+            <div className="text-3xl sm:text-4xl font-black leading-tight tracking-tight mb-2 min-h-[3.5rem]">
+              <TypingTags />
+            </div>
 
             {/* Subtitle */}
             <p className="font-mono text-sm text-[#484f58] mb-3">
               {'// '}
-              <span className="text-[#06b6d4]">Java</span>
+              <span className="text-[#06b6d4]">Backend</span>
               {' · '}
-              <span className="text-[#06b6d4]">Spring Boot</span>
+              <span className="text-[#06b6d4]">Architecture</span>
               {' · '}
-              <span className="text-[#06b6d4]">Clean Architecture</span>
+              <span className="text-[#06b6d4]">Growth</span>
             </p>
 
             {/* Description */}
             <p className="text-[#8b949e] text-base leading-relaxed mb-8">
-              끊임없이 배우고 기록합니다. 기술 부채 없는 코드를 지향합니다.
+              경험을 구조화하고, 글로 정리합니다.
             </p>
 
             {/* CTA buttons */}
             <div className="flex items-center gap-3 flex-wrap mb-7">
+              <Link
+                href="/blog"
+                className="inline-flex items-center gap-2 border border-[#22d3ee] text-[#22d3ee] px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#22d3ee]/10 transition-colors"
+              >
+                Posts →
+              </Link>
               <Link
                 href="/series"
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-[#7c3aed] to-[#ec4899] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity shadow-lg"
               >
                 Series →
               </Link>
-              <Link
-                href="/blog"
-                className="inline-flex items-center gap-2 border border-[#22d3ee] text-[#22d3ee] px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#22d3ee]/10 transition-colors"
+              {/* GitHub Star 버튼 */}
+              <a
+                href="https://github.com/rueun/blog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-md border border-[#30363d] bg-[#21262d] text-[#c9d1d9] text-xs font-medium hover:bg-[#30363d] transition-colors overflow-hidden"
               >
-                Blog →
-              </Link>
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 border-r border-[#30363d]">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                  </svg>
+                  Star
+                </span>
+              </a>
             </div>
 
             {/* Stats */}
@@ -108,16 +117,15 @@ export default function Home() {
                 📝 <span className="text-[#8b949e] font-semibold">{allPosts.length}</span> posts
               </span>
               <span>
-                📚 <span className="text-[#8b949e] font-semibold">Backend Dev</span>
+                📚 <span className="text-[#8b949e] font-semibold">{allSeries.length}</span> series
               </span>
-              <span>☕ Java · Spring</span>
             </div>
           </div>
 
           {/* Right column: Terminal */}
-          <div className="hidden lg:flex flex-1 items-center justify-center">
+          <div className="hidden lg:flex flex-1 items-end justify-end">
             <div
-              className="w-full max-w-sm bg-[#0d1117] border border-[#30363d] rounded-xl overflow-hidden"
+              className="w-full max-w-md bg-[#0d1117] border border-[#30363d] rounded-xl overflow-hidden"
               style={{
                 boxShadow:
                   '0 0 0 1px rgba(48,54,61,0.5), 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(16,185,129,0.08)',
@@ -136,7 +144,7 @@ export default function Home() {
               </div>
 
               {/* Terminal body */}
-              <div className="p-5 font-mono text-xs">
+              <div className="p-6 font-mono text-sm">
                 <div className="flex gap-2 mb-3">
                   <span className="text-[#10b981]">$</span>
                   <span className="text-[#e6edf3]">git log --oneline -5</span>

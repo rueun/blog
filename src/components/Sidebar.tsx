@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
+import { useBannerHeight } from '@/components/AnnounceBanner'
 import type { CategoryTreeItem } from '@/lib/types'
 
 interface RecentPost {
@@ -121,7 +122,7 @@ function SidebarContent({
         .filter((cat) => cat._parentMatch || cat.children.length > 0)
 
   return (
-    <div className="w-64 h-full bg-[#1e1e2e] flex flex-col overflow-y-auto border-r border-[#313244]">
+    <div className="w-64 h-full bg-[#161b22] flex flex-col overflow-y-auto border-r border-[#30363d]">
       {/* 닫기 버튼 */}
       <div className="flex justify-end p-4 shrink-0">
         <button
@@ -137,7 +138,7 @@ function SidebarContent({
 
       {/* 프로필 */}
       <div className="flex flex-col items-center px-6 pb-5 shrink-0">
-        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#313244] mb-3">
+        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#30363d] mb-3">
           <Image
             src="https://avatars.githubusercontent.com/u/64256409"
             alt="Rueun"
@@ -177,7 +178,7 @@ function SidebarContent({
 
       {/* 검색창 */}
       <div className="px-4 pb-4 shrink-0">
-        <div className="flex items-center gap-2 bg-[#313244] rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 bg-[#21262d] rounded-lg px-3 py-2">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 shrink-0">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
@@ -199,17 +200,17 @@ function SidebarContent({
         </div>
       </div>
 
-      <div className="border-t border-[#313244] mx-4 mb-2 shrink-0" />
+      <div className="border-t border-[#30363d] mx-4 mb-2 shrink-0" />
 
       {/* 카테고리 트리 */}
       <nav className="px-3 py-2 flex-1">
         {/* 전체 */}
         <Link
-          href="/"
+          href="/blog"
           className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors text-sm mb-0.5 ${
             !currentCategory && !search
-              ? 'text-white bg-[#313244]'
-              : 'text-gray-400 hover:bg-[#313244] hover:text-white'
+              ? 'text-white bg-[#21262d]'
+              : 'text-gray-400 hover:bg-[#21262d] hover:text-white'
           }`}
         >
           <FolderIcon className="text-yellow-400 shrink-0" />
@@ -228,11 +229,11 @@ function SidebarContent({
               {/* 부모 카테고리 행 */}
               <div className="flex items-center gap-1 mb-0.5">
                 <Link
-                  href={`/?category=${encodeURIComponent(cat.name)}`}
+                  href={`/blog?category=${encodeURIComponent(cat.name)}`}
                   className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors text-sm flex-1 min-w-0 ${
                     isActive
-                      ? 'text-white bg-[#313244]'
-                      : 'text-gray-400 hover:bg-[#313244] hover:text-white'
+                      ? 'text-white bg-[#21262d]'
+                      : 'text-gray-400 hover:bg-[#21262d] hover:text-white'
                   }`}
                 >
                   <FolderIcon className="text-yellow-400 shrink-0" />
@@ -258,11 +259,11 @@ function SidebarContent({
                     return (
                       <Link
                         key={child.name}
-                        href={`/?category=${encodeURIComponent(child.name)}`}
+                        href={`/blog?category=${encodeURIComponent(child.name)}`}
                         className={`flex items-center gap-2 py-1 px-2 rounded-lg transition-colors text-xs mb-0.5 ${
                           isChildActive
-                            ? 'text-white bg-[#313244]'
-                            : 'text-gray-500 hover:bg-[#313244] hover:text-gray-300'
+                            ? 'text-white bg-[#21262d]'
+                            : 'text-gray-500 hover:bg-[#21262d] hover:text-gray-300'
                         }`}
                       >
                         <FileIcon className="text-gray-500 shrink-0" />
@@ -282,7 +283,7 @@ function SidebarContent({
         )}
       </nav>
 
-      <div className="border-t border-[#313244] mx-4 my-2 shrink-0" />
+      <div className="border-t border-[#30363d] mx-4 my-2 shrink-0" />
 
       {/* 최신글 */}
       <div className="px-4 pb-8 shrink-0">
@@ -307,6 +308,9 @@ function SidebarContent({
 export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, recentPosts, totalPosts }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [hoveringEdge, setHoveringEdge] = useState(false)
+  const bannerH = useBannerHeight()
+  const topPx = bannerH + 56 // 배너 + GNB(56px)
+  const sidebarStyle = { top: topPx, height: `calc(100vh - ${topPx}px)` }
 
   const handleClose = () => {
     onDesktopToggle(false)
@@ -317,9 +321,10 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
     <>
       {/* 데스크탑 사이드바 */}
       <aside
-        className={`hidden lg:block fixed left-0 top-0 h-full z-30 transition-transform duration-300 ${
+        className={`hidden lg:block fixed left-0 z-30 transition-all duration-300 ${
           desktopOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={sidebarStyle}
       >
         <SidebarContent categoryTree={categoryTree} recentPosts={recentPosts} totalPosts={totalPosts} onClose={handleClose} />
       </aside>
@@ -327,7 +332,8 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
       {/* 데스크탑: 닫혔을 때 왼쪽 끝 호버존 */}
       {!desktopOpen && (
         <div
-          className="hidden lg:block fixed left-0 top-0 h-full w-6 z-20"
+          className="hidden lg:block fixed left-0 w-6 z-20"
+          style={sidebarStyle}
           onMouseEnter={() => setHoveringEdge(true)}
           onMouseLeave={() => setHoveringEdge(false)}
         >
@@ -338,7 +344,7 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
           >
             <button
               onClick={() => onDesktopToggle(true)}
-              className="bg-[#1e1e2e] border border-[#313244] text-gray-400 hover:text-white p-2 rounded-r-lg shadow-lg transition-colors"
+              className="bg-[#161b22] border border-[#30363d] text-gray-400 hover:text-white p-2 rounded-r-lg shadow-lg transition-colors"
               aria-label="사이드바 열기"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -353,7 +359,7 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
       {!mobileOpen && (
         <button
           onClick={() => setMobileOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-40 bg-[#1e1e2e] border border-[#313244] text-gray-400 hover:text-white p-2 rounded-lg shadow transition-colors"
+          className="lg:hidden fixed top-4 left-4 z-40 bg-[#161b22] border border-[#30363d] text-gray-400 hover:text-white p-2 rounded-lg shadow transition-colors"
           aria-label="메뉴 열기"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -372,9 +378,10 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
 
       {/* 모바일: 사이드바 드로어 */}
       <aside
-        className={`lg:hidden fixed left-0 top-0 h-full z-30 transition-transform duration-300 ${
+        className={`lg:hidden fixed left-0 z-30 transition-all duration-300 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={sidebarStyle}
       >
         <SidebarContent categoryTree={categoryTree} recentPosts={recentPosts} totalPosts={totalPosts} onClose={handleClose} />
       </aside>

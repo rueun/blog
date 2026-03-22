@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useBannerHeight } from '@/components/AnnounceBanner'
 import type { Heading } from '@/lib/types'
 
 interface Props {
@@ -39,6 +40,8 @@ function TocList({
 export default function TableOfContents({ headings }: Props) {
   const [activeId, setActiveId] = useState<string>('')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const bannerH = useBannerHeight()
+  const topPx = bannerH + 56 + 24 // 배너 + GNB + 여유
 
   useEffect(() => {
     if (headings.length === 0) return
@@ -78,18 +81,23 @@ export default function TableOfContents({ headings }: Props) {
 
   return (
     <>
-      {/* Desktop: fixed sidebar */}
-      <div className="hidden 2xl:block fixed top-24 right-8 w-56 max-h-[calc(100vh-8rem)] overflow-y-auto bg-[#161b22] border border-[#30363d] rounded-xl shadow-sm p-4">
-        <p className="font-mono text-[11px] font-bold text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
-          <span className="text-[#10b981]">§</span> 목차
-        </p>
-        <TocList headings={headings} activeId={activeId} onClickItem={handleClick} />
-      </div>
+      {/* Desktop: 오른쪽 고정 사이드바 */}
+      <aside
+        className="hidden xl:block fixed right-4 w-56 overflow-y-auto"
+        style={{ top: topPx, maxHeight: `calc(100vh - ${topPx + 24}px)` }}
+      >
+        <div className="bg-[#161b22] border border-[#30363d] rounded-xl shadow-sm p-4">
+          <p className="font-mono text-[11px] font-bold text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <span className="text-[#10b981]">§</span> 목차
+          </p>
+          <TocList headings={headings} activeId={activeId} onClickItem={handleClick} />
+        </div>
+      </aside>
 
-      {/* Mobile: floating button */}
+      {/* Mobile: 플로팅 버튼 */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="2xl:hidden fixed bottom-6 right-6 z-40 w-12 h-12 bg-[#7c3aed] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#6d28d9] transition-colors"
+        className="xl:hidden fixed bottom-6 right-6 z-40 w-12 h-12 bg-[#7c3aed] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#6d28d9] transition-colors"
         aria-label="목차 열기"
       >
         <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
@@ -97,17 +105,17 @@ export default function TableOfContents({ headings }: Props) {
         </svg>
       </button>
 
-      {/* Mobile: backdrop */}
+      {/* Mobile: 백드롭 */}
       {mobileOpen && (
         <div
-          className="2xl:hidden fixed inset-0 z-40 bg-black/50"
+          className="xl:hidden fixed inset-0 z-40 bg-black/50"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Mobile: bottom drawer */}
+      {/* Mobile: 하단 드로어 */}
       <div
-        className={`2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#161b22] border-t border-[#30363d] rounded-t-2xl shadow-xl transition-transform duration-300 ${
+        className={`xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#161b22] border-t border-[#30363d] rounded-t-2xl shadow-xl transition-transform duration-300 ${
           mobileOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
       >

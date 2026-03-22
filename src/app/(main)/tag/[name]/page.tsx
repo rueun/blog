@@ -1,35 +1,51 @@
-import { getAllPostMetas, getCategoryTree } from '@/lib/posts'
+import { getAllPostMetas } from '@/lib/posts'
 import Link from 'next/link'
 import type { PostMeta } from '@/lib/types'
+import type { Metadata } from 'next'
 
-type Props = {
-  searchParams: Promise<{ category?: string }>
+type Props = { params: Promise<{ name: string }> }
+
+export async function generateStaticParams() {
+  const allPosts = getAllPostMetas()
+  const tagSet = new Set<string>()
+  allPosts.forEach((p) => (p.tags ?? []).forEach((t) => tagSet.add(t)))
+  return Array.from(tagSet).map((name) => ({ name }))
 }
 
-export default async function BlogPage({ searchParams }: Props) {
-  const { category } = await searchParams
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { name } = await params
+  const tag = decodeURIComponent(name)
+  return { title: `#${tag}` }
+}
+
+export default async function TagPage({ params }: Props) {
+  const { name } = await params
+  const tag = decodeURIComponent(name)
   const allPosts = getAllPostMetas()
-  const categoryTree = getCategoryTree()
+  const filteredPosts = allPosts.filter((p) => (p.tags ?? []).includes(tag))
 
-  const filteredPosts = category
-    ? allPosts.filter((p) => p.categories?.includes(category))
-    : allPosts
-
-  // 선택된 카테고리의 하위 카테고리 찾기
-  const selectedParent = category
-    ? categoryTree.find((c) => c.name === category)
-    : null
+  // 관련 태그 수집
+  const relatedTags: Record<string, number> = {}
+  filteredPosts.forEach((p) => {
+    (p.tags ?? []).forEach((t) => {
+      if (t !== tag) relatedTags[t] = (relatedTags[t] ?? 0) + 1
+    })
+  })
+  const sortedRelatedTags = Object.entries(relatedTags)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
 
   return (
     <div className="relative z-[1] max-w-4xl mx-auto px-6 pt-12 pb-20">
-      {/* 카테고리 헤더 */}
+      {/* 태그 헤더 */}
       <div className="text-center mb-8">
         <div className="flex items-center justify-center gap-2.5 mb-2">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="#484f58">
-            <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
+            <line x1="7" y1="7" x2="7.01" y2="7"/>
           </svg>
           <h1 className="text-xl sm:text-2xl font-bold text-[#e6edf3]">
-            {category ?? '전체'}
+            #{tag}
           </h1>
         </div>
         <p className="font-mono text-xs text-[#484f58]">
@@ -37,48 +53,25 @@ export default async function BlogPage({ searchParams }: Props) {
         </p>
       </div>
 
-      {/* 하위 카테고리 */}
-      {selectedParent && selectedParent.children.length > 0 && (
+      {/* 관련 태그 */}
+      {sortedRelatedTags.length > 0 && (
         <div className="mb-8 border-t border-[#21262d] pt-5">
           <p className="font-mono text-[11px] text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
-            <span className="text-[#10b981]">§</span> 하위 카테고리
+            <span className="text-[#10b981]">§</span> 관련 태그
           </p>
           <div className="flex items-center gap-2 flex-wrap">
-            {selectedParent.children.map((child) => (
+            {sortedRelatedTags.map(([t, count]) => (
               <Link
-                key={child.name}
-                href={`/blog?category=${encodeURIComponent(child.name)}`}
-                className="inline-flex items-center gap-1.5 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3] hover:border-[#a78bfa] transition-colors"
+                key={t}
+                href={`/tag/${encodeURIComponent(t)}`}
+                className="inline-flex items-center gap-1.5 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#10b981] hover:border-[#10b981] transition-colors"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
+                  <line x1="7" y1="7" x2="7.01" y2="7"/>
                 </svg>
-                {child.name}
-                <span className="text-[#484f58]">({child.count})</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 카테고리 필터 (전체일 때) */}
-      {!category && (
-        <div className="mb-8 border-t border-[#21262d] pt-5">
-          <p className="font-mono text-[11px] text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
-            <span className="text-[#10b981]">§</span> 카테고리
-          </p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {categoryTree.map((cat) => (
-              <Link
-                key={cat.name}
-                href={`/blog?category=${encodeURIComponent(cat.name)}`}
-                className="inline-flex items-center gap-1.5 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3] hover:border-[#a78bfa] transition-colors"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b">
-                  <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-                </svg>
-                {cat.name}
-                <span className="text-[#484f58]">({cat.count})</span>
+                {t}
+                <span className="text-[#484f58]">({count})</span>
               </Link>
             ))}
           </div>
@@ -87,21 +80,17 @@ export default async function BlogPage({ searchParams }: Props) {
 
       {/* 게시글 목록 */}
       <div className="border-t border-[#21262d] pt-5">
-        {filteredPosts.length === 0 ? (
-          <div className="text-center py-16 font-mono text-sm text-[#484f58]">
-            게시글이 없습니다.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredPosts.map((post) => <PostCard key={post.slug} post={post} />)}
-          </div>
-        )}
+        <div className="space-y-3">
+          {filteredPosts.map((post) => (
+            <PostCard key={post.slug} post={post} currentTag={tag} />
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
-function PostCard({ post }: { post: PostMeta }) {
+function PostCard({ post, currentTag }: { post: PostMeta; currentTag: string }) {
   const categories = post.categories ?? []
   const tags = post.tags ?? []
   const date = post.date
@@ -115,22 +104,22 @@ function PostCard({ post }: { post: PostMeta }) {
   return (
     <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 hover:border-[#484f58] transition-all group">
       <div className="flex gap-5">
-        {/* 본문 */}
         <div className="flex-1 min-w-0">
           {/* 날짜 + 카테고리 */}
           <div className="flex items-center justify-between mb-3">
             <span className="font-mono text-xs text-[#484f58]">{date}</span>
             <div className="flex items-center gap-1.5">
               {categories.map((cat) => (
-                <span
+                <Link
                   key={cat}
-                  className="inline-flex items-center gap-1 text-xs text-[#8b949e] bg-[#21262d] border border-[#30363d] rounded-full px-2.5 py-0.5"
+                  href={`/blog?category=${encodeURIComponent(cat)}`}
+                  className="inline-flex items-center gap-1 text-xs text-[#8b949e] bg-[#21262d] border border-[#30363d] rounded-full px-2.5 py-0.5 hover:text-[#e6edf3] hover:border-[#484f58] transition-colors"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b">
                     <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                   </svg>
                   {cat}
-                </span>
+                </Link>
               ))}
             </div>
           </div>
@@ -152,17 +141,21 @@ function PostCard({ post }: { post: PostMeta }) {
           {/* 태그 */}
           {tags.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
-              {tags.slice(0, 5).map((tag) => (
+              {tags.slice(0, 5).map((t) => (
                 <Link
-                  key={tag}
-                  href={`/tag/${encodeURIComponent(tag)}`}
-                  className="inline-flex items-center gap-1 font-mono text-[11px] text-[#484f58] border border-[#30363d] rounded-full px-2 py-0.5 hover:text-[#10b981] hover:border-[#10b981] transition-colors"
->
+                  key={t}
+                  href={`/tag/${encodeURIComponent(t)}`}
+                  className={`inline-flex items-center gap-1 font-mono text-[11px] border rounded-full px-2 py-0.5 transition-colors ${
+                    t === currentTag
+                      ? 'text-[#10b981] border-[#10b981]'
+                      : 'text-[#484f58] border-[#30363d] hover:text-[#10b981] hover:border-[#10b981]'
+                  }`}
+                >
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
                     <line x1="7" y1="7" x2="7.01" y2="7"/>
                   </svg>
-                  {tag}
+                  {t}
                 </Link>
               ))}
             </div>
@@ -173,11 +166,7 @@ function PostCard({ post }: { post: PostMeta }) {
         <Link href={`/posts/${post.slug}`} className="hidden sm:block shrink-0">
           <div className="w-36 h-28 rounded-lg overflow-hidden bg-[#21262d]">
             {post.cover ? (
-              <img
-                src={post.cover}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              <img src={post.cover} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[#30363d]">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
+import AnnounceBanner from '@/components/AnnounceBanner'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -15,6 +16,12 @@ export const metadata: Metadata = {
     template: "%s | Rueun's Blog",
   },
   description: 'Rueun의 개발 블로그 - Java, Spring, 백엔드 개발',
+  alternates: {
+    types: {
+      'application/rss+xml': '/rss.xml',
+      'application/atom+xml': '/atom.xml',
+    },
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} bg-[#0d1117] min-h-screen flex flex-col`}
         suppressHydrationWarning
       >
-        {children}
+        <AnnounceBanner>{children}</AnnounceBanner>
       </body>
     </html>
   )
