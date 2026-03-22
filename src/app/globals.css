@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme Variables */
+:root {
+  --color-base: 255 255 255;
+  --color-surface: 246 248 250;
+  --color-surface-alt: 234 238 242;
+  --color-text-primary: 31 35 40;
+  --color-text-secondary: 101 109 118;
+  --color-text-muted: 145 152 161;
+  --color-border: 208 215 222;
+  --color-border-muted: 234 238 242;
+  --color-overlay: 255 255 255;
+}
+
+.dark {
+  --color-base: 13 17 23;
+  --color-surface: 22 27 34;
+  --color-surface-alt: 33 38 45;
+  --color-text-primary: 230 237 243;
+  --color-text-secondary: 139 148 158;
+  --color-text-muted: 72 79 88;
+  --color-border: 48 54 61;
+  --color-border-muted: 33 38 45;
+  --color-overlay: 13 17 23;
+}
+
 /* ==========================================
    Blinking cursor animation
    ========================================== */
@@ -24,8 +49,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(16, 185, 129, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 185, 129, 0.025) 1px, transparent 1px);
+    linear-gradient(rgba(var(--color-text-muted), 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-text-muted), 0.04) 1px, transparent 1px);
   background-size: 48px 48px;
   pointer-events: none;
   z-index: 0;
@@ -143,7 +168,7 @@ body::before {
    ========================================== */
 
 .prose {
-  color: #8b949e;
+  color: rgb(var(--color-text-secondary));
 }
 
 .prose h1,
@@ -152,7 +177,7 @@ body::before {
 .prose h4,
 .prose h5,
 .prose h6 {
-  color: #e6edf3;
+  color: rgb(var(--color-text-primary));
 }
 
 .prose a {
@@ -167,28 +192,28 @@ body::before {
 }
 
 .prose strong {
-  color: #e6edf3;
+  color: rgb(var(--color-text-primary));
 }
 
 .prose blockquote {
-  border-left-color: #30363d;
-  color: #8b949e;
+  border-left-color: rgb(var(--color-border));
+  color: rgb(var(--color-text-secondary));
 }
 
 .prose hr {
-  border-color: #30363d;
+  border-color: rgb(var(--color-border));
 }
 
 .prose ul li::marker,
 .prose ol li::marker {
-  color: #484f58;
+  color: rgb(var(--color-text-muted));
 }
 
 /* Inline code */
 .prose :not(pre) > code {
-  background: #161b22;
+  background: rgb(var(--color-surface));
   color: #f472b6;
-  border: 1px solid #30363d;
+  border: 1px solid rgb(var(--color-border));
   padding: 0.15em 0.4em;
   border-radius: 4px;
   font-size: 0.875em;

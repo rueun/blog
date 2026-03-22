@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { useBannerHeight } from '@/components/AnnounceBanner'
+import { useTheme } from '@/components/ThemeProvider'
 import type { CategoryTreeItem } from '@/lib/types'
 
 interface RecentPost {
@@ -62,6 +63,7 @@ function SidebarContent({
 }) {
   const searchParams = useSearchParams()
   const currentCategory = searchParams.get('category')
+  const { theme, toggleTheme } = useTheme()
 
   const [search, setSearch] = useState('')
   const [expandedSet, setExpandedSet] = useState<Set<string>>(() => new Set())
@@ -123,12 +125,12 @@ function SidebarContent({
         .filter((cat) => cat._parentMatch || cat.children.length > 0)
 
   return (
-    <div className="w-64 h-full bg-[#0d1117] flex flex-col overflow-y-auto border-r border-[#21262d]">
+    <div className="w-64 h-full bg-base flex flex-col overflow-y-auto border-r border-border-muted">
       {/* 닫기 버튼 */}
       <div className="flex justify-end px-4 pt-3 shrink-0">
         <button
           onClick={onClose}
-            className="text-[#484f58] hover:text-[#e6edf3] p-1 transition-colors"
+            className="text-text-muted hover:text-text-primary p-1 transition-colors"
             aria-label="사이드바 닫기"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -148,23 +150,23 @@ function SidebarContent({
             className="rounded-full bg-white mb-3"
           />
         </Link>
-        <Link href="/" className="text-[#e6edf3] font-bold text-base hover:text-[#a78bfa] transition-colors">
+        <Link href="/" className="text-text-primary font-bold text-base hover:text-[#a78bfa] transition-colors">
           rueun.blog
         </Link>
-        <p className="text-[#484f58] text-xs mt-1 font-mono">Software Architect</p>
+        <p className="text-text-muted text-xs mt-1 font-mono">Software Architect</p>
       </div>
 
       {/* 네비게이션 */}
       <div className="px-5 pb-4 shrink-0">
         <div className="flex items-center justify-center gap-3 mb-4">
-          <Link href="/" className="flex flex-col items-center gap-0.5 text-[#484f58] hover:text-[#e6edf3] transition-colors" title="Home">
+          <Link href="/" className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="Home">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
             <span className="text-[9px] font-mono">Home</span>
           </Link>
-          <Link href="/posts" className="flex flex-col items-center gap-0.5 text-[#484f58] hover:text-[#e6edf3] transition-colors" title="Posts">
+          <Link href="/posts" className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="Posts">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
@@ -173,31 +175,38 @@ function SidebarContent({
             </svg>
             <span className="text-[9px] font-mono">Posts</span>
           </Link>
-          <Link href="/series" className="flex flex-col items-center gap-0.5 text-[#484f58] hover:text-[#e6edf3] transition-colors" title="Series">
+          <Link href="/series" className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="Series">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
             </svg>
             <span className="text-[9px] font-mono">Series</span>
           </Link>
-          <Link href="/tag" className="flex flex-col items-center gap-0.5 text-[#484f58] hover:text-[#e6edf3] transition-colors" title="Tags">
+          <Link href="/tag" className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="Tags">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
               <line x1="7" y1="7" x2="7.01" y2="7"/>
             </svg>
             <span className="text-[9px] font-mono">Tags</span>
           </Link>
-          <a href="https://github.com/rueun" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-0.5 text-[#484f58] hover:text-[#e6edf3] transition-colors" title="GitHub">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-            </svg>
-            <span className="text-[9px] font-mono">GitHub</span>
-          </a>
+          <button onClick={toggleTheme} className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="테마 전환">
+            {theme === 'dark' ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="5"/>
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+            <span className="text-[9px] font-mono">Theme</span>
+          </button>
         </div>
 
         {/* 검색창 */}
-        <div className="flex items-center gap-2 bg-[#161b22] border border-[#21262d] rounded-lg px-3 py-1.5">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#484f58] shrink-0">
+        <div className="flex items-center gap-2 bg-surface border border-border-muted rounded-lg px-3 py-1.5">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted shrink-0">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
           <input
@@ -206,21 +215,21 @@ function SidebarContent({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="검색..."
-            className="bg-transparent text-xs text-[#e6edf3] placeholder-[#484f58] outline-none w-full font-mono"
+            className="bg-transparent text-xs text-text-primary placeholder-text-muted outline-none w-full font-mono"
           />
           {search ? (
-            <button onClick={() => setSearch('')} className="text-[#484f58] hover:text-[#8b949e] shrink-0">
+            <button onClick={() => setSearch('')} className="text-text-muted hover:text-text-secondary shrink-0">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </button>
           ) : (
-            <span className="text-[#484f58] text-[10px] font-mono bg-[#0d1117] border border-[#21262d] rounded px-1.5 py-0.5 shrink-0">/</span>
+            <span className="text-text-muted text-[10px] font-mono bg-base border border-border-muted rounded px-1.5 py-0.5 shrink-0">/</span>
           )}
         </div>
       </div>
 
-      <div className="border-t border-[#21262d] mx-4 mb-2 shrink-0" />
+      <div className="border-t border-border-muted mx-4 mb-2 shrink-0" />
 
       {/* 카테고리 트리 */}
       <nav className="px-3 py-2 flex-1">
@@ -229,13 +238,13 @@ function SidebarContent({
           href="/posts"
           className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors text-sm mb-0.5 ${
             !currentCategory && !search
-              ? 'text-[#e6edf3] bg-[#161b22]'
-              : 'text-[#8b949e] hover:bg-[#161b22] hover:text-[#e6edf3]'
+              ? 'text-text-primary bg-surface'
+              : 'text-text-secondary hover:bg-surface hover:text-text-primary'
           }`}
         >
           <FolderIcon className="text-yellow-400 shrink-0" />
           <span className="flex-1">전체</span>
-          <span className="text-xs text-[#484f58]">({totalPosts})</span>
+          <span className="text-xs text-text-muted">({totalPosts})</span>
         </Link>
 
         {/* 카테고리 트리 */}
@@ -258,12 +267,12 @@ function SidebarContent({
                 >
                   <FolderIcon className="text-yellow-400 shrink-0" />
                   <span className="flex-1 truncate">{cat.name}</span>
-                  <span className="text-xs text-[#484f58] shrink-0">({cat.count})</span>
+                  <span className="text-xs text-text-muted shrink-0">({cat.count})</span>
                 </Link>
                 {hasChildren && (
                   <button
                     onClick={() => toggleExpand(cat.name)}
-                    className="text-[#484f58] hover:text-[#8b949e] p-1 shrink-0 transition-colors"
+                    className="text-text-muted hover:text-text-secondary p-1 shrink-0 transition-colors"
                     aria-label={isExpanded ? '접기' : '펼치기'}
                   >
                     <ChevronIcon open={isExpanded} />
@@ -282,13 +291,13 @@ function SidebarContent({
                         href={`/posts?category=${encodeURIComponent(child.name)}`}
                         className={`flex items-center gap-2 py-1 px-2 rounded-lg transition-colors text-xs mb-0.5 ${
                           isChildActive
-                            ? 'text-[#e6edf3] bg-[#161b22]'
-                            : 'text-[#484f58] hover:bg-[#161b22] hover:text-[#8b949e]'
+                            ? 'text-text-primary bg-surface'
+                            : 'text-text-muted hover:bg-surface hover:text-text-secondary'
                         }`}
                       >
-                        <FileIcon className="text-[#484f58] shrink-0" />
+                        <FileIcon className="text-text-muted shrink-0" />
                         <span className="flex-1 truncate">{child.name}</span>
-                        <span className="text-xs text-[#30363d]">({child.count})</span>
+                        <span className="text-xs text-border">({child.count})</span>
                       </Link>
                     )
                   })}
@@ -299,23 +308,23 @@ function SidebarContent({
         })}
 
         {filteredTree.length === 0 && search && (
-          <p className="text-xs text-[#30363d] px-2 py-4 text-center">검색 결과가 없습니다</p>
+          <p className="text-xs text-border px-2 py-4 text-center">검색 결과가 없습니다</p>
         )}
       </nav>
 
-      <div className="border-t border-[#21262d] mx-4 my-2 shrink-0" />
+      <div className="border-t border-border-muted mx-4 my-2 shrink-0" />
 
       {/* 최신글 */}
       <div className="px-4 pb-8 shrink-0">
-        <p className="font-mono text-[11px] text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
+        <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3 flex items-center gap-1.5">
           <span className="text-[#10b981]">§</span> 최신글
         </p>
         {recentPosts.map((post) => (
           <Link key={post.slug} href={`/posts/${post.slug}`} className="block mb-2.5 group">
-            <p className="text-xs text-[#8b949e] group-hover:text-[#e6edf3] transition-colors line-clamp-1 leading-relaxed">
+            <p className="text-xs text-text-secondary group-hover:text-text-primary transition-colors line-clamp-1 leading-relaxed">
               {post.title}
             </p>
-            <p className="font-mono text-[10px] text-[#484f58] mt-0.5">
+            <p className="font-mono text-[10px] text-text-muted mt-0.5">
               {new Date(post.date).toLocaleDateString('ko-KR', {
                 year: 'numeric', month: '2-digit', day: '2-digit',
               })}
@@ -366,7 +375,7 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
           >
             <button
               onClick={() => onDesktopToggle(true)}
-              className="bg-[#161b22] border border-[#30363d] text-gray-400 hover:text-white p-2 rounded-r-lg shadow-lg transition-colors"
+              className="bg-surface border border-border text-text-secondary hover:text-text-primary p-2 rounded-r-lg shadow-lg transition-colors"
               aria-label="사이드바 열기"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -381,7 +390,7 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
       {!mobileOpen && (
         <button
           onClick={() => setMobileOpen(true)}
-          className="2xl:hidden fixed left-4 z-40 bg-[#161b22] border border-[#30363d] text-gray-400 hover:text-white p-2 rounded-lg shadow transition-colors"
+          className="2xl:hidden fixed left-4 z-40 bg-surface border border-border text-text-secondary hover:text-text-primary p-2 rounded-lg shadow transition-colors"
           style={{ top: topPx + 12 }}
           aria-label="메뉴 열기"
         >

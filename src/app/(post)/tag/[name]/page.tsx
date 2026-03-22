@@ -39,7 +39,7 @@ export default async function TagPage({ params }: Props) {
     <div className="relative z-[1] max-w-4xl mx-auto px-6 sm:px-8 pt-24 2xl:pt-20 pb-20">
       {/* 페이지 헤더 */}
       <div className="mb-10">
-        <div className="font-mono text-sm text-[#484f58] mb-4 flex items-center gap-1.5">
+        <div className="font-mono text-sm text-text-muted mb-4 flex items-center gap-1.5">
           <span className="text-[#10b981]">$</span>
           <span>ls -la ./tags/{tag}</span>
         </div>
@@ -48,7 +48,7 @@ export default async function TagPage({ params }: Props) {
             #{tag}
           </span>
         </h1>
-        <div className="flex items-center gap-2.5 font-mono text-xs text-[#484f58]">
+        <div className="flex items-center gap-2.5 font-mono text-xs text-text-muted">
           <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-3 py-0.5 font-semibold">
             {filteredPosts.length} posts
           </span>
@@ -57,8 +57,8 @@ export default async function TagPage({ params }: Props) {
 
       {/* 관련 태그 */}
       {sortedRelatedTags.length > 0 && (
-        <div className="mb-8 border-t border-[#21262d] pt-5">
-          <p className="font-mono text-[11px] text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
+        <div className="mb-8 border-t border-border-muted pt-5">
+          <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3 flex items-center gap-1.5">
             <span className="text-[#10b981]">§</span> 관련 태그
           </p>
           <div className="flex items-center gap-2 flex-wrap">
@@ -66,14 +66,14 @@ export default async function TagPage({ params }: Props) {
               <Link
                 key={t}
                 href={`/tag/${encodeURIComponent(t)}`}
-                className="inline-flex items-center gap-1.5 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#10b981] hover:border-[#10b981] transition-colors"
+                className="inline-flex items-center gap-1.5 bg-base border border-border rounded-lg px-3 py-1.5 text-xs text-text-secondary hover:text-[#10b981] hover:border-[#10b981] transition-colors"
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
                   <line x1="7" y1="7" x2="7.01" y2="7"/>
                 </svg>
                 {t}
-                <span className="text-[#484f58]">({count})</span>
+                <span className="text-text-muted">({count})</span>
               </Link>
             ))}
           </div>
@@ -81,7 +81,7 @@ export default async function TagPage({ params }: Props) {
       )}
 
       {/* 게시글 목록 */}
-      <div className="border-t border-[#21262d] pt-5">
+      <div className="border-t border-border-muted pt-5">
         <div className="space-y-3">
           {filteredPosts.map((post) => (
             <PostCard key={post.slug} post={post} currentTag={tag} />
@@ -104,18 +104,18 @@ function PostCard({ post, currentTag }: { post: PostMeta; currentTag: string }) 
     : ''
 
   return (
-    <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 hover:border-[#484f58] transition-all group">
+    <div className="bg-surface border border-border rounded-xl p-6 hover:border-text-muted transition-all group">
       <div className="flex gap-5">
         <div className="flex-1 min-w-0">
           {/* 날짜 + 카테고리 */}
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono text-xs text-[#484f58]">{date}</span>
+            <span className="font-mono text-xs text-text-muted">{date}</span>
             <div className="flex items-center gap-1.5">
               {categories.map((cat) => (
                 <Link
                   key={cat}
                   href={`/posts?category=${encodeURIComponent(cat)}`}
-                  className="inline-flex items-center gap-1 text-xs text-[#8b949e] bg-[#21262d] border border-[#30363d] rounded-full px-2.5 py-0.5 hover:text-[#e6edf3] hover:border-[#484f58] transition-colors"
+                  className="inline-flex items-center gap-1 text-xs text-text-secondary bg-surface-alt border border-border rounded-full px-2.5 py-0.5 hover:text-text-primary hover:border-text-muted transition-colors"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b">
                     <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
@@ -128,14 +128,14 @@ function PostCard({ post, currentTag }: { post: PostMeta; currentTag: string }) 
 
           {/* 제목 */}
           <Link href={`/posts/${post.slug}`}>
-            <h3 className="font-bold text-[#e6edf3] group-hover:text-[#a78bfa] transition-colors text-base sm:text-lg mb-2 leading-snug">
+            <h3 className="font-bold text-text-primary group-hover:text-[#a78bfa] transition-colors text-base sm:text-lg mb-2 leading-snug">
               {post.title}
             </h3>
           </Link>
 
           {/* 설명 */}
           {(post.description || post.summary) && (
-            <p className="text-sm text-[#8b949e] mb-4 line-clamp-2 leading-relaxed">
+            <p className="text-sm text-text-secondary mb-4 line-clamp-2 leading-relaxed">
               {post.description || post.summary}
             </p>
           )}
@@ -150,7 +150,7 @@ function PostCard({ post, currentTag }: { post: PostMeta; currentTag: string }) 
                   className={`inline-flex items-center gap-1 font-mono text-[11px] border rounded-full px-2 py-0.5 transition-colors ${
                     t === currentTag
                       ? 'text-[#10b981] border-[#10b981]'
-                      : 'text-[#484f58] border-[#30363d] hover:text-[#10b981] hover:border-[#10b981]'
+                      : 'text-text-muted border-border hover:text-[#10b981] hover:border-[#10b981]'
                   }`}
                 >
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -166,11 +166,11 @@ function PostCard({ post, currentTag }: { post: PostMeta; currentTag: string }) 
 
         {/* 커버 이미지 / 기본 이미지 */}
         <Link href={`/posts/${post.slug}`} className="hidden sm:block shrink-0">
-          <div className="w-36 h-28 rounded-lg overflow-hidden bg-[#21262d]">
+          <div className="w-36 h-28 rounded-lg overflow-hidden bg-surface-alt">
             {post.cover ? (
               <img src={post.cover} alt="" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-[#30363d]">
+              <div className="w-full h-full flex items-center justify-center text-border">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
                   <polyline points="14,2 14,8 20,8"/>

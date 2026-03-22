@@ -6,7 +6,7 @@ const SocialIcon = ({ href, label, children }: { href: string; label: string; ch
     target="_blank"
     rel="noopener noreferrer"
     aria-label={label}
-    className="text-[#484f58] hover:text-[#e6edf3] transition-colors"
+    className="text-text-muted hover:text-text-primary transition-colors"
   >
     {children}
   </a>
@@ -14,19 +14,19 @@ const SocialIcon = ({ href, label, children }: { href: string; label: string; ch
 
 export default function Footer() {
   return (
-    <footer className="border-t border-[#30363d] bg-[#010409] relative z-[1]">
+    <footer className="border-t border-border bg-base relative z-[1]">
       <div className="max-w-5xl mx-auto px-6 py-10">
         {/* 링크 섹션 */}
         <div className="grid grid-cols-2 max-w-md gap-8 mb-8">
           <div>
-            <h3 className="text-[#e6edf3] font-semibold text-sm mb-3">Feeds</h3>
+            <h3 className="text-text-primary font-semibold text-sm mb-3">Feeds</h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <a
                   href="/rss.xml"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#8b949e] hover:text-[#e6edf3] transition-colors inline-flex items-center gap-1"
+                  className="text-text-secondary hover:text-text-primary transition-colors inline-flex items-center gap-1"
                 >
                   RSS
                   <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
@@ -39,7 +39,7 @@ export default function Footer() {
                   href="/atom.xml"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#8b949e] hover:text-[#e6edf3] transition-colors inline-flex items-center gap-1"
+                  className="text-text-secondary hover:text-text-primary transition-colors inline-flex items-center gap-1"
                 >
                   Atom
                   <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
@@ -50,15 +50,15 @@ export default function Footer() {
             </ul>
           </div>
           <div>
-            <h3 className="text-[#e6edf3] font-semibold text-sm mb-3">More</h3>
+            <h3 className="text-text-primary font-semibold text-sm mb-3">More</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/posts" className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                <Link href="/posts" className="text-text-secondary hover:text-text-primary transition-colors">
                   Posts
                 </Link>
               </li>
               <li>
-                <Link href="/series" className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                <Link href="/series" className="text-text-secondary hover:text-text-primary transition-colors">
                   Series
                 </Link>
               </li>
@@ -67,9 +67,9 @@ export default function Footer() {
         </div>
 
         {/* 구분선 */}
-        <div className="border-t border-[#30363d] pt-6">
+        <div className="border-t border-border pt-6">
           {/* Copyright */}
-          <p className="text-center text-[#484f58] text-sm font-mono mb-4">
+          <p className="text-center text-text-muted text-sm font-mono mb-4">
             Copyright © 2026{' '}
             <a
               href="https://github.com/rueun"

@@ -8,7 +8,7 @@ export default function SeriesPage() {
     <div className="relative z-[1]">
       {/* Page Header */}
       <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-24 2xl:pt-20 pb-10">
-        <div className="font-mono text-sm text-[#484f58] mb-4 flex items-center gap-1.5">
+        <div className="font-mono text-sm text-text-muted mb-4 flex items-center gap-1.5">
           <span className="text-[#10b981]">$</span>
           <span>ls -la ./series</span>
         </div>
@@ -17,7 +17,7 @@ export default function SeriesPage() {
             Series
           </span>
         </h1>
-        <div className="flex items-center gap-2.5 font-mono text-xs text-[#484f58]">
+        <div className="flex items-center gap-2.5 font-mono text-xs text-text-muted">
           <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-3 py-0.5 font-semibold">
             {seriesList.length} series
           </span>
@@ -31,7 +31,7 @@ export default function SeriesPage() {
         ))}
 
         {seriesList.length === 0 && (
-          <div className="text-center py-20 font-mono text-sm text-[#484f58]">
+          <div className="text-center py-20 font-mono text-sm text-text-muted">
             <span>// </span>아직 시리즈가 없습니다.
           </div>
         )}
@@ -52,7 +52,7 @@ function SeriesCard({
     : ''
 
   return (
-    <div className="bg-[#161b22] border border-[#30363d] border-l-[3px] border-l-[#10b981] rounded-2xl overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.35),0_0_0_1px_#30363d]">
+    <div className="bg-surface border border-border border-l-[3px] border-l-[#10b981] rounded-2xl overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.35),0_0_0_1px_#30363d]">
       <div className="flex gap-0 px-6 sm:px-8 py-6 items-start">
         {/* Series number */}
         <div className="shrink-0 font-mono text-5xl font-bold text-white/[0.04] leading-none mr-6 mt-[-4px] select-none tracking-tighter">
@@ -63,11 +63,11 @@ function SeriesCard({
         <div className="flex-1 min-w-0">
           {/* Header */}
           <div className="flex items-center gap-3 flex-wrap mb-2">
-            <h2 className="text-xl font-black text-[#e6edf3] tracking-tight">{series.name}</h2>
+            <h2 className="text-xl font-black text-text-primary tracking-tight">{series.name}</h2>
           </div>
 
           {/* Meta */}
-          <div className="flex items-center gap-3 flex-wrap font-mono text-xs text-[#484f58] mb-5">
+          <div className="flex items-center gap-3 flex-wrap font-mono text-xs text-text-muted mb-5">
             <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-2.5 py-0.5 font-semibold">
               {series.posts.length} posts
             </span>
@@ -83,13 +83,13 @@ function SeriesCard({
               <Link
                 key={post.slug}
                 href={`/posts/${post.slug}`}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/4 transition-colors group"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-alt transition-colors group"
               >
-                <span className="font-mono text-[11px] text-[#484f58] w-6 shrink-0">
+                <span className="font-mono text-[11px] text-text-muted w-6 shrink-0">
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <span className="w-1.5 h-1.5 rounded-full bg-[#30363d] shrink-0 group-hover:bg-[#a78bfa] transition-colors" />
-                <span className="text-sm text-[#8b949e] group-hover:text-[#e6edf3] transition-colors flex-1 leading-snug">
+                <span className="w-1.5 h-1.5 rounded-full bg-border shrink-0 group-hover:bg-[#a78bfa] transition-colors" />
+                <span className="text-sm text-text-secondary group-hover:text-text-primary transition-colors flex-1 leading-snug">
                   {post.title}
                 </span>
               </Link>
@@ -97,18 +97,18 @@ function SeriesCard({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between pt-4 border-t border-[#21262d]">
+          <div className="flex items-center justify-between pt-4 border-t border-border-muted">
             <Link
               href={`/posts/${series.posts[0].slug}`}
               className="inline-flex items-center gap-2 font-mono text-xs font-semibold text-[#a78bfa] border border-[#7c3aed]/30 bg-[#7c3aed]/8 px-4 py-2 rounded-lg hover:bg-[#7c3aed]/15 hover:border-[#7c3aed]/50 transition-all"
             >
               시리즈 보기 →
             </Link>
-            <div className="flex items-center gap-2 font-mono text-xs text-[#484f58]">
+            <div className="flex items-center gap-2 font-mono text-xs text-text-muted">
               <span>
                 {series.posts.length}/{series.posts.length}
               </span>
-              <div className="w-20 h-1 bg-[#21262d] rounded-full overflow-hidden">
+              <div className="w-20 h-1 bg-border-muted rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full"
                   style={{

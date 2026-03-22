@@ -100,13 +100,13 @@ export default async function PostPage({ params }: Props) {
       <div className="max-w-4xl 2xl:max-w-3xl mx-auto px-8 sm:px-14 pt-10 pb-20">
         <article>
           {/* 카테고리 */}
-          <div className="font-mono text-sm text-[#484f58] mb-6 text-center">
+          <div className="font-mono text-sm text-text-muted mb-6 text-center">
             {categories.map((cat, i) => (
               <span key={cat}>
-                {i > 0 && <span className="text-[#30363d]"> / </span>}
+                {i > 0 && <span className="text-border"> / </span>}
                 <Link
                   href={`/posts?category=${encodeURIComponent(cat)}`}
-                  className="hover:text-[#8b949e] transition-colors"
+                  className="hover:text-text-secondary transition-colors"
                 >
                   {cat}
                 </Link>
@@ -117,15 +117,15 @@ export default async function PostPage({ params }: Props) {
           {/* Article Header */}
           <header className="mb-9 text-center">
             {/* Title */}
-            <h1 className="text-3xl sm:text-4xl font-black text-[#e6edf3] leading-tight tracking-tight mb-5">
+            <h1 className="text-3xl sm:text-4xl font-black text-text-primary leading-tight tracking-tight mb-5">
               {post.title}
             </h1>
 
             {/* Meta */}
-            <div className="font-mono text-xs text-[#484f58] pb-6 border-b border-[#30363d]">
+            <div className="font-mono text-xs text-text-muted pb-6 border-b border-border">
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <span className="text-[#10b981]">{formattedDate}</span>
-                <span className="text-[#30363d]">·</span>
+                <span className="text-border">·</span>
                 <span className="text-[#10b981]">{post.readingTime}</span>
               </div>
               {post.series && (
@@ -159,12 +159,12 @@ export default async function PostPage({ params }: Props) {
 
           {/* 태그 */}
           {tags.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap mt-12 pb-8 mb-10 border-b border-[#21262d]">
+            <div className="flex items-center gap-2 flex-wrap mt-12 pb-8 mb-10 border-b border-border-muted">
               {tags.map((tag) => (
                 <Link
                   key={tag}
                   href={`/tag/${encodeURIComponent(tag)}`}
-                  className="inline-flex items-center font-mono text-xs text-[#8b949e] bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-1.5 hover:text-[#10b981] hover:border-[#10b981] transition-colors"
+                  className="inline-flex items-center font-mono text-xs text-text-secondary bg-surface border border-border rounded-lg px-3 py-1.5 hover:text-[#10b981] hover:border-[#10b981] transition-colors"
                 >
                   #{tag}
                 </Link>

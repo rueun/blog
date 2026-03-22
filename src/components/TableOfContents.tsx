@@ -28,7 +28,7 @@ function TocList({
             className={`text-left text-xs leading-relaxed w-full transition-all py-1 px-2 rounded-md border-l-2 ${
               activeId === h.id
                 ? 'text-[#a78bfa] font-semibold border-l-[#a78bfa] bg-[#7c3aed]/8'
-                : 'text-[#484f58] hover:text-[#8b949e] border-l-transparent hover:bg-white/3'
+                : 'text-text-muted hover:text-text-secondary border-l-transparent hover:bg-surface-alt'
             }`}
           >
             {h.text}
@@ -102,8 +102,8 @@ export default function TableOfContents({ headings }: Props) {
         className={`hidden ${desktopShow === '2xl' ? '2xl:block' : 'xl:block'} fixed right-4 w-56 overflow-y-auto transition-opacity duration-300`}
         style={{ top: topPx, maxHeight: `calc(100vh - ${topPx + 24}px)` }}
       >
-        <div className="bg-[#161b22] border border-[#30363d] rounded-xl shadow-sm p-4">
-          <p className="font-mono text-[11px] font-bold text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
+        <div className="bg-surface border border-border rounded-xl shadow-sm p-4">
+          <p className="font-mono text-[11px] font-bold text-text-muted uppercase tracking-widest mb-3 flex items-center gap-1.5">
             <span className="text-[#10b981]">§</span> 목차
           </p>
           <TocList headings={headings} activeId={activeId} onClickItem={handleClick} />
@@ -136,18 +136,18 @@ export default function TableOfContents({ headings }: Props) {
 
           {/* 하단 드로어 */}
           <div
-            className={`fixed bottom-0 left-0 right-0 z-[71] bg-[#161b22] border-t border-[#30363d] rounded-t-2xl shadow-xl transition-transform duration-300 ${
+            className={`fixed bottom-0 left-0 right-0 z-[71] bg-surface border-t border-border rounded-t-2xl shadow-xl transition-transform duration-300 ${
               mobileOpen ? 'translate-y-0' : 'translate-y-full'
             }`}
           >
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
-                <p className="font-mono text-xs font-semibold text-[#484f58] uppercase tracking-wider flex items-center gap-1.5">
+                <p className="font-mono text-xs font-semibold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
                   <span className="text-[#10b981]">§</span> 목차
                 </p>
                 <button
                   onClick={() => setMobileOpen(false)}
-                  className="text-[#484f58] hover:text-[#8b949e] transition-colors"
+                  className="text-text-muted hover:text-text-secondary transition-colors"
                 >
                   ✕
                 </button>

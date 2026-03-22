@@ -32,7 +32,7 @@ function TerminalCommit({
       <span style={{ color }} className="shrink-0">
         feat:
       </span>
-      <span className="text-[#8b949e] truncate">{message}</span>
+      <span className="text-text-secondary truncate">{message}</span>
     </div>
   )
 }
@@ -59,7 +59,7 @@ export default function Home() {
             </div>
 
             {/* Title */}
-            <h1 className="text-xl sm:text-2xl font-bold text-[#e6edf3] leading-tight tracking-tight mb-3">
+            <h1 className="text-xl sm:text-2xl font-bold text-text-primary leading-tight tracking-tight mb-3">
               맥락을 읽는 개발자
             </h1>
             <div className="text-3xl sm:text-4xl font-black leading-tight tracking-tight mb-2 min-h-[3.5rem]">
@@ -67,7 +67,7 @@ export default function Home() {
             </div>
 
             {/* Subtitle */}
-            <p className="font-mono text-sm text-[#484f58] mb-3">
+            <p className="font-mono text-sm text-text-muted mb-3">
               {'// '}
               <span className="text-[#06b6d4]">Backend</span>
               {' · '}
@@ -77,7 +77,7 @@ export default function Home() {
             </p>
 
             {/* Description */}
-            <p className="text-[#8b949e] text-base leading-relaxed mb-8">
+            <p className="text-text-secondary text-base leading-relaxed mb-8">
               경험을 구조화하고, 글로 정리합니다.
             </p>
 
@@ -100,9 +100,9 @@ export default function Home() {
                 href="https://github.com/rueun/blog"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center rounded-md border border-[#30363d] bg-[#21262d] text-[#c9d1d9] text-xs font-medium hover:bg-[#30363d] transition-colors overflow-hidden"
+                className="inline-flex items-center rounded-md border border-border bg-surface-alt text-[#c9d1d9] text-xs font-medium hover:bg-border transition-colors overflow-hidden"
               >
-                <span className="inline-flex items-center gap-1.5 px-3 py-2 border-r border-[#30363d]">
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 border-r border-border">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
                   </svg>
@@ -112,12 +112,12 @@ export default function Home() {
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-5 font-mono text-xs text-[#484f58] flex-wrap">
+            <div className="flex items-center gap-5 font-mono text-xs text-text-muted flex-wrap">
               <span>
-                📝 <span className="text-[#8b949e] font-semibold">{allPosts.length}</span> posts
+                📝 <span className="text-text-secondary font-semibold">{allPosts.length}</span> posts
               </span>
               <span>
-                📚 <span className="text-[#8b949e] font-semibold">{allSeries.length}</span> series
+                📚 <span className="text-text-secondary font-semibold">{allSeries.length}</span> series
               </span>
             </div>
           </div>
@@ -125,20 +125,20 @@ export default function Home() {
           {/* Right column: Terminal */}
           <div className="hidden lg:flex flex-1 items-end justify-end">
             <div
-              className="w-full max-w-md bg-[#0d1117] border border-[#30363d] rounded-xl overflow-hidden"
+              className="w-full max-w-md bg-base border border-border rounded-xl overflow-hidden"
               style={{
                 boxShadow:
                   '0 0 0 1px rgba(48,54,61,0.5), 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(16,185,129,0.08)',
               }}
             >
               {/* Terminal header */}
-              <div className="bg-[#161b22] border-b border-[#21262d] px-4 py-3 flex items-center gap-2.5">
+              <div className="bg-surface border-b border-border-muted px-4 py-3 flex items-center gap-2.5">
                 <div className="flex gap-1.5">
                   <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
                   <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
                   <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                 </div>
-                <span className="font-mono text-xs text-[#484f58] flex-1 text-center">
+                <span className="font-mono text-xs text-text-muted flex-1 text-center">
                   rueun@blog — zsh
                 </span>
               </div>
@@ -147,7 +147,7 @@ export default function Home() {
               <div className="p-6 font-mono text-sm">
                 <div className="flex gap-2 mb-3">
                   <span className="text-[#10b981]">$</span>
-                  <span className="text-[#e6edf3]">git log --oneline -5</span>
+                  <span className="text-text-primary">git log --oneline -5</span>
                 </div>
 
                 {terminalPosts.length > 0 ? (
@@ -182,16 +182,16 @@ export default function Home() {
       </section>
 
       {/* Divider */}
-      <div className="h-px bg-[#21262d] max-w-7xl mx-auto" />
+      <div className="h-px bg-border-muted max-w-7xl mx-auto" />
 
       {/* Recent Posts Section */}
       <section className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-16 py-16">
         <div className="flex items-end justify-between mb-10">
           <div>
-            <div className="font-mono text-xs text-[#484f58] mb-1.5">
+            <div className="font-mono text-xs text-text-muted mb-1.5">
               <span className="text-[#10b981]">$</span> ls -la ./posts | head -6
             </div>
-            <h2 className="text-xl font-bold text-[#e6edf3] flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-text-primary flex items-center gap-2.5">
               <span
                 className="inline-block w-1 h-5 rounded-sm"
                 style={{ background: 'linear-gradient(180deg, #10b981, #06b6d4)' }}
@@ -216,7 +216,7 @@ export default function Home() {
         <div className="text-center mt-10">
           <Link
             href="/posts"
-            className="inline-flex items-center gap-2 font-mono text-sm text-[#10b981] border border-[#30363d] px-5 py-2.5 rounded-lg hover:bg-[#161b22] hover:border-[#484f58] transition-all"
+            className="inline-flex items-center gap-2 font-mono text-sm text-[#10b981] border border-border px-5 py-2.5 rounded-lg hover:bg-surface hover:border-text-muted transition-all"
           >
             전체 게시글 보기 →
           </Link>
@@ -224,17 +224,17 @@ export default function Home() {
       </section>
 
       {/* Divider */}
-      <div className="h-px bg-[#21262d] max-w-7xl mx-auto" />
+      <div className="h-px bg-border-muted max-w-7xl mx-auto" />
 
       {/* Series Section */}
       {allSeries.length > 0 && (
         <section className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-16 py-16">
           <div className="flex items-end justify-between mb-10">
             <div>
-              <div className="font-mono text-xs text-[#484f58] mb-1.5">
+              <div className="font-mono text-xs text-text-muted mb-1.5">
                 <span className="text-[#10b981]">$</span> ls ./series
               </div>
-              <h2 className="text-xl font-bold text-[#e6edf3] flex items-center gap-2.5">
+              <h2 className="text-xl font-bold text-text-primary flex items-center gap-2.5">
                 <span
                   className="inline-block w-1 h-5 rounded-sm"
                   style={{ background: 'linear-gradient(180deg, #a78bfa, #ec4899)' }}
@@ -255,12 +255,12 @@ export default function Home() {
               <Link
                 key={series.name}
                 href={`/posts/${series.posts[0].slug}`}
-                className="block bg-[#161b22] border border-[#30363d] border-l-[3px] border-l-[#a78bfa] rounded-xl p-5 hover:border-[#484f58] hover:border-l-[#a78bfa] transition-all group"
+                className="block bg-surface border border-border border-l-[3px] border-l-[#a78bfa] rounded-xl p-5 hover:border-text-muted hover:border-l-[#a78bfa] transition-all group"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📚</span>
-                    <h3 className="font-bold text-[#e6edf3] text-sm group-hover:text-[#a78bfa] transition-colors leading-snug">
+                    <h3 className="font-bold text-text-primary text-sm group-hover:text-[#a78bfa] transition-colors leading-snug">
                       {series.name}
                     </h3>
                   </div>
@@ -271,14 +271,14 @@ export default function Home() {
                 <ol className="flex flex-col gap-1">
                   {series.posts.slice(0, 3).map((post, idx) => (
                     <li key={post.slug} className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-[#484f58] w-4 shrink-0">
+                      <span className="font-mono text-[10px] text-text-muted w-4 shrink-0">
                         {String(idx + 1).padStart(2, '0')}
                       </span>
-                      <span className="text-[11px] text-[#8b949e] truncate">{post.title}</span>
+                      <span className="text-[11px] text-text-secondary truncate">{post.title}</span>
                     </li>
                   ))}
                   {series.posts.length > 3 && (
-                    <li className="font-mono text-[10px] text-[#484f58] pl-6">
+                    <li className="font-mono text-[10px] text-text-muted pl-6">
                       +{series.posts.length - 3}개 더
                     </li>
                   )}
@@ -290,7 +290,7 @@ export default function Home() {
           <div className="text-center mt-10">
             <Link
               href="/series"
-              className="inline-flex items-center gap-2 font-mono text-sm text-[#a78bfa] border border-[#30363d] px-5 py-2.5 rounded-lg hover:bg-[#161b22] hover:border-[#484f58] transition-all"
+              className="inline-flex items-center gap-2 font-mono text-sm text-[#a78bfa] border border-border px-5 py-2.5 rounded-lg hover:bg-surface hover:border-text-muted transition-all"
             >
               시리즈 전체 보기 →
             </Link>
@@ -311,7 +311,7 @@ function RecentPostCard({ post }: { post: PostMeta }) {
   return (
     <Link
       href={`/posts/${post.slug}`}
-      className="block bg-[#161b22] border border-[#30363d] rounded-xl p-5 hover:border-[#8b949e] transition-all group"
+      className="block bg-surface border border-border rounded-xl p-5 hover:border-text-secondary transition-all group"
       style={{ borderLeft: `4px solid ${color}` }}
     >
       <div className="flex items-center justify-between mb-2">
@@ -325,13 +325,13 @@ function RecentPostCard({ post }: { post: PostMeta }) {
         >
           {label}
         </span>
-        <span className="font-mono text-xs text-[#484f58]">{date}</span>
+        <span className="font-mono text-xs text-text-muted">{date}</span>
       </div>
-      <h3 className="font-bold text-[#e6edf3] group-hover:text-[#a78bfa] transition-colors mt-2 mb-3 line-clamp-2 text-sm leading-snug">
+      <h3 className="font-bold text-text-primary group-hover:text-[#a78bfa] transition-colors mt-2 mb-3 line-clamp-2 text-sm leading-snug">
         {post.title}
       </h3>
       {(post.description || post.summary) && (
-        <p className="text-xs text-[#8b949e] line-clamp-2 mb-3 leading-relaxed">
+        <p className="text-xs text-text-secondary line-clamp-2 mb-3 leading-relaxed">
           {post.description || post.summary}
         </p>
       )}
@@ -340,7 +340,7 @@ function RecentPostCard({ post }: { post: PostMeta }) {
           {(post.tags ?? []).slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="font-mono text-[10px] text-[#484f58] bg-white/4 border border-[#21262d] px-1.5 py-0.5 rounded"
+              className="font-mono text-[10px] text-text-muted bg-white/4 border border-border-muted px-1.5 py-0.5 rounded"
             >
               #{tag}
             </span>

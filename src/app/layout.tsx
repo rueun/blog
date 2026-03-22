@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import AnnounceBanner from '@/components/AnnounceBanner'
+import ThemeProvider from '@/components/ThemeProvider'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -26,12 +27,30 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var theme = localStorage.getItem('theme');
+                if (theme === 'light') {
+                  document.documentElement.classList.remove('dark');
+                } else {
+                  document.documentElement.classList.add('dark');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} bg-[#0d1117] min-h-screen flex flex-col`}
+        className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} bg-base min-h-screen flex flex-col`}
         suppressHydrationWarning
       >
-        <AnnounceBanner>{children}</AnnounceBanner>
+        <ThemeProvider>
+          <AnnounceBanner>{children}</AnnounceBanner>
+        </ThemeProvider>
       </body>
     </html>
   )

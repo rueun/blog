@@ -30,18 +30,18 @@ export default function AnnounceBanner({ children }: { children: React.ReactNode
       {visible && (
         <div
           ref={ref}
-          className="fixed top-0 left-0 right-0 z-[55] bg-[#161b22] px-4 py-1.5 flex items-center justify-center"
+          className="fixed top-0 left-0 right-0 z-[55] bg-surface px-4 py-1.5 flex items-center justify-center"
         >
-          <p className="text-xs text-[#8b949e] text-center">
+          <p className="text-xs text-text-secondary text-center">
             배우고, 기록하고, 성장합니다{' '}
-            <span className="text-[#30363d]">|</span>{' '}
+            <span className="text-border">|</span>{' '}
             <a href="https://github.com/rueun" target="_blank" rel="noopener noreferrer" className="text-[#a78bfa] hover:underline">
               GitHub
             </a>
           </p>
           <button
             onClick={() => setVisible(false)}
-            className="absolute right-4 text-[#484f58] hover:text-[#8b949e] transition-colors"
+            className="absolute right-4 text-text-muted hover:text-text-secondary transition-colors"
             aria-label="배너 닫기"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

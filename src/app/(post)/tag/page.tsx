@@ -23,7 +23,7 @@ export default function TagsPage() {
     <div className="relative z-[1] max-w-4xl mx-auto px-6 sm:px-8 pt-24 2xl:pt-20 pb-20">
       {/* 페이지 헤더 */}
       <div className="mb-10">
-        <div className="font-mono text-sm text-[#484f58] mb-4 flex items-center gap-1.5">
+        <div className="font-mono text-sm text-text-muted mb-4 flex items-center gap-1.5">
           <span className="text-[#10b981]">$</span>
           <span>ls -la ./tags</span>
         </div>
@@ -32,7 +32,7 @@ export default function TagsPage() {
             Tags
           </span>
         </h1>
-        <div className="flex items-center gap-2.5 font-mono text-xs text-[#484f58]">
+        <div className="flex items-center gap-2.5 font-mono text-xs text-text-muted">
           <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-3 py-0.5 font-semibold">
             {sortedTags.length} tags
           </span>
@@ -45,14 +45,14 @@ export default function TagsPage() {
           <Link
             key={tag}
             href={`/tag/${encodeURIComponent(tag)}`}
-            className="inline-flex items-center gap-1.5 bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#10b981] hover:border-[#10b981] transition-colors"
+            className="inline-flex items-center gap-1.5 bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-secondary hover:text-[#10b981] hover:border-[#10b981] transition-colors"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
               <line x1="7" y1="7" x2="7.01" y2="7"/>
             </svg>
             {tag}
-            <span className="text-[#484f58]">({count})</span>
+            <span className="text-text-muted">({count})</span>
           </Link>
         ))}
       </div>
