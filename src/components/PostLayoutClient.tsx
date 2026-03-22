@@ -35,6 +35,7 @@ export default function PostLayoutClient({ children, categoryTree, recentPosts, 
             desktopOpen={desktopOpen}
             onDesktopToggle={setDesktopOpen}
             categoryTree={categoryTree}
+            navbarHeight={0}
             recentPosts={recentPosts}
             totalPosts={totalPosts}
           />

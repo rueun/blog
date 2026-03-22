@@ -43,7 +43,7 @@ export default function TableOfContents({ headings }: Props) {
   const [activeId, setActiveId] = useState<string>('')
   const [mobileOpen, setMobileOpen] = useState(false)
   const bannerH = useBannerHeight()
-  const topPx = bannerH + 56 + 24 // 배너 + GNB + 여유
+  const topPx = bannerH + 24 // 배너 + 여유 (GNB 없는 레이아웃)
   let sidebarOpen = true
   try { sidebarOpen = useSidebarOpen() } catch { /* PostLayoutClient 외부에서는 기본값 사용 */ }
   // LNB 열림: 2xl(1536px) 이상에서 TOC 표시, 그 미만 플로팅

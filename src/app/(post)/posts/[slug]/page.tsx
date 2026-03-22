@@ -97,7 +97,7 @@ export default async function PostPage({ params }: Props) {
   return (
     <div className="relative z-[1]">
       {/* 본문 영역 */}
-      <div className="max-w-4xl 2xl:max-w-3xl mx-auto px-8 sm:px-14 pt-16 sm:pt-10 pb-20">
+      <div className="max-w-4xl 2xl:max-w-3xl mx-auto px-8 sm:px-14 pt-10 pb-20">
         <article>
           {/* 카테고리 */}
           <div className="font-mono text-sm text-[#484f58] mb-6 text-center">
