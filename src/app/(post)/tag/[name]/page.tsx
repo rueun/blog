@@ -36,21 +36,23 @@ export default async function TagPage({ params }: Props) {
     .slice(0, 10)
 
   return (
-    <div className="relative z-[1] max-w-4xl mx-auto px-6 pt-12 pb-20">
-      {/* 태그 헤더 */}
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center gap-2.5 mb-2">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2">
-            <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
-            <line x1="7" y1="7" x2="7.01" y2="7"/>
-          </svg>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#e6edf3]">
-            #{tag}
-          </h1>
+    <div className="relative z-[1] max-w-4xl mx-auto px-6 sm:px-8 pt-24 2xl:pt-20 pb-20">
+      {/* 페이지 헤더 */}
+      <div className="mb-10">
+        <div className="font-mono text-sm text-[#484f58] mb-4 flex items-center gap-1.5">
+          <span className="text-[#10b981]">$</span>
+          <span>ls -la ./tags/{tag}</span>
         </div>
-        <p className="font-mono text-xs text-[#484f58]">
-          <span className="text-[#10b981]">{filteredPosts.length}</span> posts
-        </p>
+        <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#10b981] to-[#22d3ee]">
+            #{tag}
+          </span>
+        </h1>
+        <div className="flex items-center gap-2.5 font-mono text-xs text-[#484f58]">
+          <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-3 py-0.5 font-semibold">
+            {filteredPosts.length} posts
+          </span>
+        </div>
       </div>
 
       {/* 관련 태그 */}

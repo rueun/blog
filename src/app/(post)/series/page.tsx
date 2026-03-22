@@ -7,25 +7,25 @@ export default function SeriesPage() {
   return (
     <div className="relative z-[1]">
       {/* Page Header */}
-      <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-16 pb-12">
+      <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-24 2xl:pt-20 pb-10">
         <div className="font-mono text-sm text-[#484f58] mb-4 flex items-center gap-1.5">
           <span className="text-[#10b981]">$</span>
           <span>ls -la ./series</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight mb-3">
+        <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#a78bfa] to-[#ec4899]">
             Series
           </span>
         </h1>
-        <div className="flex items-center gap-2.5 font-mono text-sm text-[#484f58]">
-          <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-3 py-0.5 text-xs font-semibold">
-            총 {seriesList.length}개의 시리즈
+        <div className="flex items-center gap-2.5 font-mono text-xs text-[#484f58]">
+          <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-3 py-0.5 font-semibold">
+            {seriesList.length} series
           </span>
         </div>
       </div>
 
       {/* Series List */}
-      <div className="max-w-4xl mx-auto px-6 sm:px-8 pb-24 flex flex-col gap-8">
+      <div className="max-w-4xl mx-auto px-6 sm:px-8 pb-20 flex flex-col gap-8">
         {seriesList.map((series, idx) => (
           <SeriesCard key={series.name} series={series} index={idx + 1} />
         ))}
@@ -99,7 +99,7 @@ function SeriesCard({
           {/* Footer */}
           <div className="flex items-center justify-between pt-4 border-t border-[#21262d]">
             <Link
-              href={`/blog?series=${encodeURIComponent(series.name)}`}
+              href={`/posts/${series.posts[0].slug}`}
               className="inline-flex items-center gap-2 font-mono text-xs font-semibold text-[#a78bfa] border border-[#7c3aed]/30 bg-[#7c3aed]/8 px-4 py-2 rounded-lg hover:bg-[#7c3aed]/15 hover:border-[#7c3aed]/50 transition-all"
             >
               시리즈 보기 →

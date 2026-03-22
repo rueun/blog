@@ -26,10 +26,28 @@ export default async function BlogPage({ searchParams }: Props) {
     : null
 
   return (
-    <div className="relative z-[1] max-w-4xl mx-auto px-6 pt-12 pb-20">
+    <div className="relative z-[1] max-w-4xl mx-auto px-6 sm:px-8 pt-24 2xl:pt-20 pb-20">
+      {/* 페이지 헤더 */}
+      <div className="mb-10">
+        <div className="font-mono text-sm text-[#484f58] mb-4 flex items-center gap-1.5">
+          <span className="text-[#10b981]">$</span>
+          <span>ls -la ./posts{category ? `/${category}` : ''}</span>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#22d3ee] to-[#10b981]">
+            {category ?? 'Posts'}
+          </span>
+        </h1>
+        <div className="flex items-center gap-2.5 font-mono text-xs text-[#484f58]">
+          <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 rounded-full px-3 py-0.5 font-semibold">
+            {filteredPosts.length} posts
+          </span>
+        </div>
+      </div>
+
       {/* 브레드크럼 */}
       {category && (
-        <nav className="font-mono text-xs text-[#484f58] flex items-center gap-1.5 mb-6 justify-center">
+        <nav className="font-mono text-xs text-[#484f58] flex items-center gap-1.5 mb-6">
           <Link href="/posts" className="hover:text-[#8b949e] transition-colors">전체</Link>
           {parentOfSelected && (
             <>
@@ -46,21 +64,6 @@ export default async function BlogPage({ searchParams }: Props) {
           <span className="text-[#8b949e]">{category}</span>
         </nav>
       )}
-
-      {/* 카테고리 헤더 */}
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center gap-2.5 mb-2">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="#484f58">
-            <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-          </svg>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#e6edf3]">
-            {category ?? '전체'}
-          </h1>
-        </div>
-        <p className="font-mono text-xs text-[#484f58]">
-          <span className="text-[#10b981]">{filteredPosts.length}</span> posts
-        </p>
-      </div>
 
       {/* 카테고리 (항상 표시) */}
       <div className="mb-8 border-t border-[#21262d] pt-5">
