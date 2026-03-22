@@ -84,7 +84,7 @@ export default function Home() {
             {/* CTA buttons */}
             <div className="flex items-center gap-3 flex-wrap mb-7">
               <Link
-                href="/blog"
+                href="/posts"
                 className="inline-flex items-center gap-2 border border-[#22d3ee] text-[#22d3ee] px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#22d3ee]/10 transition-colors"
               >
                 Posts →
@@ -200,7 +200,7 @@ export default function Home() {
             </h2>
           </div>
           <Link
-            href="/blog"
+            href="/posts"
             className="font-mono text-xs font-semibold text-[#10b981] hover:gap-2 flex items-center gap-1 transition-all"
           >
             전체 보기 →
@@ -215,7 +215,7 @@ export default function Home() {
 
         <div className="text-center mt-10">
           <Link
-            href="/blog"
+            href="/posts"
             className="inline-flex items-center gap-2 font-mono text-sm text-[#10b981] border border-[#30363d] px-5 py-2.5 rounded-lg hover:bg-[#161b22] hover:border-[#484f58] transition-all"
           >
             전체 게시글 보기 →

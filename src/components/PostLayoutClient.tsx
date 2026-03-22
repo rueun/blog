@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, Suspense, createContext, useContext } from 'react'
 import Sidebar from '@/components/Sidebar'
 import type { CategoryTreeItem } from '@/lib/types'
 
@@ -17,23 +17,32 @@ interface Props {
   totalPosts: number
 }
 
+// LNB 열림 상태를 공유하는 context
+const SidebarOpenContext = createContext(true)
+
+export function useSidebarOpen() {
+  return useContext(SidebarOpenContext)
+}
+
 export default function PostLayoutClient({ children, categoryTree, recentPosts, totalPosts }: Props) {
   const [desktopOpen, setDesktopOpen] = useState(true)
 
   return (
-    <div className="min-h-screen">
-      <Suspense fallback={null}>
-        <Sidebar
-          desktopOpen={desktopOpen}
-          onDesktopToggle={setDesktopOpen}
-          categoryTree={categoryTree}
-          recentPosts={recentPosts}
-          totalPosts={totalPosts}
-        />
-      </Suspense>
-      <div className={`transition-all duration-300 ${desktopOpen ? 'lg:ml-64' : 'lg:ml-0'}`}>
-        {children}
+    <SidebarOpenContext.Provider value={desktopOpen}>
+      <div className="min-h-screen">
+        <Suspense fallback={null}>
+          <Sidebar
+            desktopOpen={desktopOpen}
+            onDesktopToggle={setDesktopOpen}
+            categoryTree={categoryTree}
+            recentPosts={recentPosts}
+            totalPosts={totalPosts}
+          />
+        </Suspense>
+        <div className={`transition-all duration-300 ${desktopOpen ? '2xl:ml-64' : '2xl:ml-0'}`}>
+          {children}
+        </div>
       </div>
-    </div>
+    </SidebarOpenContext.Provider>
   )
 }

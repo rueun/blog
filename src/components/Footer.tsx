@@ -53,7 +53,7 @@ export default function Footer() {
             <h3 className="text-[#e6edf3] font-semibold text-sm mb-3">More</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/blog" className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                <Link href="/posts" className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
                   Posts
                 </Link>
               </li>

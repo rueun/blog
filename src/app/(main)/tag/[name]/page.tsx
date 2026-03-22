@@ -112,7 +112,7 @@ function PostCard({ post, currentTag }: { post: PostMeta; currentTag: string }) 
               {categories.map((cat) => (
                 <Link
                   key={cat}
-                  href={`/blog?category=${encodeURIComponent(cat)}`}
+                  href={`/posts?category=${encodeURIComponent(cat)}`}
                   className="inline-flex items-center gap-1 text-xs text-[#8b949e] bg-[#21262d] border border-[#30363d] rounded-full px-2.5 py-0.5 hover:text-[#e6edf3] hover:border-[#484f58] transition-colors"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b">

@@ -206,7 +206,7 @@ function SidebarContent({
       <nav className="px-3 py-2 flex-1">
         {/* 전체 */}
         <Link
-          href="/blog"
+          href="/posts"
           className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors text-sm mb-0.5 ${
             !currentCategory && !search
               ? 'text-white bg-[#21262d]'
@@ -229,7 +229,7 @@ function SidebarContent({
               {/* 부모 카테고리 행 */}
               <div className="flex items-center gap-1 mb-0.5">
                 <Link
-                  href={`/blog?category=${encodeURIComponent(cat.name)}`}
+                  href={`/posts?category=${encodeURIComponent(cat.name)}`}
                   className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors text-sm flex-1 min-w-0 ${
                     isActive
                       ? 'text-white bg-[#21262d]'
@@ -259,7 +259,7 @@ function SidebarContent({
                     return (
                       <Link
                         key={child.name}
-                        href={`/blog?category=${encodeURIComponent(child.name)}`}
+                        href={`/posts?category=${encodeURIComponent(child.name)}`}
                         className={`flex items-center gap-2 py-1 px-2 rounded-lg transition-colors text-xs mb-0.5 ${
                           isChildActive
                             ? 'text-white bg-[#21262d]'
@@ -321,7 +321,7 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
     <>
       {/* 데스크탑 사이드바 */}
       <aside
-        className={`hidden lg:block fixed left-0 z-30 transition-all duration-300 ${
+        className={`hidden 2xl:block fixed left-0 z-30 transition-all duration-300 ${
           desktopOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={sidebarStyle}
@@ -332,7 +332,7 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
       {/* 데스크탑: 닫혔을 때 왼쪽 끝 호버존 */}
       {!desktopOpen && (
         <div
-          className="hidden lg:block fixed left-0 w-6 z-20"
+          className="hidden 2xl:block fixed left-0 w-6 z-20"
           style={sidebarStyle}
           onMouseEnter={() => setHoveringEdge(true)}
           onMouseLeave={() => setHoveringEdge(false)}
@@ -359,7 +359,8 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
       {!mobileOpen && (
         <button
           onClick={() => setMobileOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-40 bg-[#161b22] border border-[#30363d] text-gray-400 hover:text-white p-2 rounded-lg shadow transition-colors"
+          className="2xl:hidden fixed left-4 z-40 bg-[#161b22] border border-[#30363d] text-gray-400 hover:text-white p-2 rounded-lg shadow transition-colors"
+          style={{ top: topPx + 12 }}
           aria-label="메뉴 열기"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -371,14 +372,14 @@ export default function Sidebar({ desktopOpen, onDesktopToggle, categoryTree, re
       {/* 모바일: 백드롭 */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-20"
+          className="2xl:hidden fixed inset-0 bg-black/50 z-20"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* 모바일: 사이드바 드로어 */}
       <aside
-        className={`lg:hidden fixed left-0 z-30 transition-all duration-300 ${
+        className={`2xl:hidden fixed left-0 z-30 transition-all duration-300 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={sidebarStyle}

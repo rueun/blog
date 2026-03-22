@@ -15,13 +15,38 @@ export default async function BlogPage({ searchParams }: Props) {
     ? allPosts.filter((p) => p.categories?.includes(category))
     : allPosts
 
-  // 선택된 카테고리의 하위 카테고리 찾기
+  // 선택된 카테고리의 하위 카테고리 찾기 (상위 카테고리인 경우)
   const selectedParent = category
     ? categoryTree.find((c) => c.name === category)
     : null
 
+  // 선택된 카테고리가 하위 카테고리인 경우 부모 찾기
+  const parentOfSelected = category && !selectedParent
+    ? categoryTree.find((c) => c.children.some((child) => child.name === category))
+    : null
+
   return (
     <div className="relative z-[1] max-w-4xl mx-auto px-6 pt-12 pb-20">
+      {/* 브레드크럼 */}
+      {category && (
+        <nav className="font-mono text-xs text-[#484f58] flex items-center gap-1.5 mb-6 justify-center">
+          <Link href="/posts" className="hover:text-[#8b949e] transition-colors">전체</Link>
+          {parentOfSelected && (
+            <>
+              <span className="text-[#30363d]">/</span>
+              <Link
+                href={`/posts?category=${encodeURIComponent(parentOfSelected.name)}`}
+                className="hover:text-[#8b949e] transition-colors"
+              >
+                {parentOfSelected.name}
+              </Link>
+            </>
+          )}
+          <span className="text-[#30363d]">/</span>
+          <span className="text-[#8b949e]">{category}</span>
+        </nav>
+      )}
+
       {/* 카테고리 헤더 */}
       <div className="text-center mb-8">
         <div className="flex items-center justify-center gap-2.5 mb-2">
@@ -37,6 +62,47 @@ export default async function BlogPage({ searchParams }: Props) {
         </p>
       </div>
 
+      {/* 카테고리 (항상 표시) */}
+      <div className="mb-8 border-t border-[#21262d] pt-5">
+        <p className="font-mono text-[11px] text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
+          <span className="text-[#10b981]">§</span> 카테고리
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 전체 */}
+          <Link
+            href="/posts"
+            className={`inline-flex items-center gap-1.5 bg-[#0d1117] border rounded-lg px-3 py-1.5 text-xs transition-colors ${
+              !category
+                ? 'text-[#e6edf3] border-[#a78bfa]'
+                : 'text-[#8b949e] border-[#30363d] hover:text-[#e6edf3] hover:border-[#a78bfa]'
+            }`}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b">
+              <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+            </svg>
+            전체
+            <span className="text-[#484f58]">({allPosts.length})</span>
+          </Link>
+          {categoryTree.map((cat) => (
+            <Link
+              key={cat.name}
+              href={`/posts?category=${encodeURIComponent(cat.name)}`}
+              className={`inline-flex items-center gap-1.5 bg-[#0d1117] border rounded-lg px-3 py-1.5 text-xs transition-colors ${
+                cat.name === category || (parentOfSelected && parentOfSelected.name === cat.name)
+                  ? 'text-[#e6edf3] border-[#a78bfa]'
+                  : 'text-[#8b949e] border-[#30363d] hover:text-[#e6edf3] hover:border-[#a78bfa]'
+              }`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b">
+                <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+              </svg>
+              {cat.name}
+              <span className="text-[#484f58]">({cat.count})</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* 하위 카테고리 */}
       {selectedParent && selectedParent.children.length > 0 && (
         <div className="mb-8 border-t border-[#21262d] pt-5">
@@ -47,7 +113,7 @@ export default async function BlogPage({ searchParams }: Props) {
             {selectedParent.children.map((child) => (
               <Link
                 key={child.name}
-                href={`/blog?category=${encodeURIComponent(child.name)}`}
+                href={`/posts?category=${encodeURIComponent(child.name)}`}
                 className="inline-flex items-center gap-1.5 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3] hover:border-[#a78bfa] transition-colors"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -61,24 +127,28 @@ export default async function BlogPage({ searchParams }: Props) {
         </div>
       )}
 
-      {/* 카테고리 필터 (전체일 때) */}
-      {!category && (
+      {/* 하위 카테고리 선택 시 형제 카테고리 */}
+      {parentOfSelected && parentOfSelected.children.length > 1 && (
         <div className="mb-8 border-t border-[#21262d] pt-5">
           <p className="font-mono text-[11px] text-[#484f58] uppercase tracking-widest mb-3 flex items-center gap-1.5">
-            <span className="text-[#10b981]">§</span> 카테고리
+            <span className="text-[#10b981]">§</span> 하위 카테고리
           </p>
           <div className="flex items-center gap-2 flex-wrap">
-            {categoryTree.map((cat) => (
+            {parentOfSelected.children.map((child) => (
               <Link
-                key={cat.name}
-                href={`/blog?category=${encodeURIComponent(cat.name)}`}
-                className="inline-flex items-center gap-1.5 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3] hover:border-[#a78bfa] transition-colors"
+                key={child.name}
+                href={`/posts?category=${encodeURIComponent(child.name)}`}
+                className={`inline-flex items-center gap-1.5 bg-[#0d1117] border rounded-lg px-3 py-1.5 text-xs transition-colors ${
+                  child.name === category
+                    ? 'text-[#e6edf3] border-[#a78bfa]'
+                    : 'text-[#8b949e] border-[#30363d] hover:text-[#e6edf3] hover:border-[#a78bfa]'
+                }`}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b">
-                  <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/>
                 </svg>
-                {cat.name}
-                <span className="text-[#484f58]">({cat.count})</span>
+                {child.name}
+                <span className="text-[#484f58]">({child.count})</span>
               </Link>
             ))}
           </div>
@@ -122,15 +192,16 @@ function PostCard({ post }: { post: PostMeta }) {
             <span className="font-mono text-xs text-[#484f58]">{date}</span>
             <div className="flex items-center gap-1.5">
               {categories.map((cat) => (
-                <span
+                <Link
                   key={cat}
-                  className="inline-flex items-center gap-1 text-xs text-[#8b949e] bg-[#21262d] border border-[#30363d] rounded-full px-2.5 py-0.5"
+                  href={`/posts?category=${encodeURIComponent(cat)}`}
+                  className="inline-flex items-center gap-1 text-xs text-[#8b949e] bg-[#21262d] border border-[#30363d] rounded-full px-2.5 py-0.5 hover:text-[#e6edf3] hover:border-[#484f58] transition-colors"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b">
                     <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                   </svg>
                   {cat}
-                </span>
+                </Link>
               ))}
             </div>
           </div>

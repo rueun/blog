@@ -1,6 +1,7 @@
 import ReadingProgress from '@/components/ReadingProgress'
 import Navbar from '@/components/Navbar'
 import NavSpacer from '@/components/NavSpacer'
+import Footer from '@/components/Footer'
 import PostLayoutClient from '@/components/PostLayoutClient'
 import { getCategoryTree, getAllPostMetas } from '@/lib/posts'
 
@@ -24,6 +25,7 @@ export default function PostGroupLayout({ children }: { children: React.ReactNod
         totalPosts={allPosts.length}
       >
         <main className="flex-1 relative z-[1]">{children}</main>
+        <Footer />
       </PostLayoutClient>
     </>
   )

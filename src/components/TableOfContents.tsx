@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useBannerHeight } from '@/components/AnnounceBanner'
+import { useSidebarOpen } from '@/components/PostLayoutClient'
 import type { Heading } from '@/lib/types'
 
 interface Props {
@@ -42,6 +44,20 @@ export default function TableOfContents({ headings }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const bannerH = useBannerHeight()
   const topPx = bannerH + 56 + 24 // 배너 + GNB + 여유
+  let sidebarOpen = true
+  try { sidebarOpen = useSidebarOpen() } catch { /* PostLayoutClient 외부에서는 기본값 사용 */ }
+  // LNB 열림: 2xl(1536px) 이상에서 TOC 표시, 그 미만 플로팅
+  // LNB 닫힘: xl(1280px) 이상에서 TOC 표시, 그 미만 플로팅
+  const desktopShow = sidebarOpen ? '2xl' : 'xl'
+  const [showFloating, setShowFloating] = useState(false)
+
+  useEffect(() => {
+    const breakpoint = sidebarOpen ? 1536 : 1280
+    const check = () => setShowFloating(window.innerWidth < breakpoint)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [sidebarOpen])
 
   useEffect(() => {
     if (headings.length === 0) return
@@ -81,9 +97,9 @@ export default function TableOfContents({ headings }: Props) {
 
   return (
     <>
-      {/* Desktop: 오른쪽 고정 사이드바 */}
+      {/* Desktop: 오른쪽 고정 사이드바 (LNB 열려있으면 숨김) */}
       <aside
-        className="hidden xl:block fixed right-4 w-56 overflow-y-auto"
+        className={`hidden ${desktopShow === '2xl' ? '2xl:block' : 'xl:block'} fixed right-4 w-56 overflow-y-auto transition-opacity duration-300`}
         style={{ top: topPx, maxHeight: `calc(100vh - ${topPx + 24}px)` }}
       >
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl shadow-sm p-4">
@@ -94,46 +110,54 @@ export default function TableOfContents({ headings }: Props) {
         </div>
       </aside>
 
-      {/* Mobile: 플로팅 버튼 */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="xl:hidden fixed bottom-6 right-6 z-40 w-12 h-12 bg-[#7c3aed] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#6d28d9] transition-colors"
-        aria-label="목차 열기"
-      >
-        <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
-          <path d="M0 1h20M0 8h20M0 15h20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </button>
-
-      {/* Mobile: 백드롭 */}
-      {mobileOpen && (
-        <div
-          className="xl:hidden fixed inset-0 z-40 bg-black/50"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Mobile: 하단 드로어 */}
-      <div
-        className={`xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#161b22] border-t border-[#30363d] rounded-t-2xl shadow-xl transition-transform duration-300 ${
-          mobileOpen ? 'translate-y-0' : 'translate-y-full'
-        }`}
-      >
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-4">
-            <p className="font-mono text-xs font-semibold text-[#484f58] uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-[#10b981]">§</span> 목차
-            </p>
+      {/* 플로팅/드로어: 포탈로 body에 직접 렌더링 */}
+      {typeof document !== 'undefined' && createPortal(
+        <>
+          {/* 플로팅 버튼 */}
+          {showFloating && (
             <button
-              onClick={() => setMobileOpen(false)}
-              className="text-[#484f58] hover:text-[#8b949e] transition-colors"
+              onClick={() => setMobileOpen(true)}
+              className="fixed bottom-6 right-6 z-[70] w-12 h-12 bg-[#7c3aed] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#6d28d9] transition-colors"
+              aria-label="목차 열기"
             >
-              ✕
+              <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
+                <path d="M0 1h20M0 8h20M0 15h20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
             </button>
+          )}
+
+          {/* 백드롭 */}
+          {mobileOpen && (
+            <div
+              className="fixed inset-0 z-[70] bg-black/50"
+              onClick={() => setMobileOpen(false)}
+            />
+          )}
+
+          {/* 하단 드로어 */}
+          <div
+            className={`fixed bottom-0 left-0 right-0 z-[71] bg-[#161b22] border-t border-[#30363d] rounded-t-2xl shadow-xl transition-transform duration-300 ${
+              mobileOpen ? 'translate-y-0' : 'translate-y-full'
+            }`}
+          >
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-mono text-xs font-semibold text-[#484f58] uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-[#10b981]">§</span> 목차
+                </p>
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="text-[#484f58] hover:text-[#8b949e] transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              <TocList headings={headings} activeId={activeId} onClickItem={handleClick} />
+            </div>
           </div>
-          <TocList headings={headings} activeId={activeId} onClickItem={handleClick} />
-        </div>
-      </div>
+        </>,
+        document.body
+      )}
     </>
   )
 }

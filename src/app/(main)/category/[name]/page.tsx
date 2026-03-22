@@ -25,7 +25,7 @@ export default async function CategoryPage({ params }: Props) {
       <div className="max-w-3xl mx-auto px-6 pt-16 pb-10">
         {/* Breadcrumb */}
         <div className="font-mono text-xs text-[#484f58] mb-5 flex items-center gap-1.5">
-          <Link href="/blog" className="hover:text-[#8b949e] transition-colors">
+          <Link href="/posts" className="hover:text-[#8b949e] transition-colors">
             blog
           </Link>
           <span className="text-[#30363d]">/</span>

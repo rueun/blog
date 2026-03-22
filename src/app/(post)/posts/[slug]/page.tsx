@@ -90,70 +90,48 @@ export default async function PostPage({ params }: Props) {
     : ''
 
   const categories = Array.isArray(post.categories) ? post.categories : []
+  const tags = Array.isArray(post.tags) ? post.tags : []
   const primaryCat = categories[0] ?? ''
   const catColor = primaryCat ? getCategoryColor(primaryCat) : '#8b949e'
 
   return (
     <div className="relative z-[1]">
       {/* 본문 영역 */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 pt-10 pb-20">
+      <div className="max-w-4xl 2xl:max-w-3xl mx-auto px-8 sm:px-14 pt-16 sm:pt-10 pb-20">
         <article>
-          {/* Breadcrumb */}
-          <nav className="font-mono text-xs text-[#484f58] flex items-center gap-1.5 mb-6 flex-wrap">
-            <Link href="/blog" className="hover:text-[#8b949e] transition-colors">
-              blog
-            </Link>
-            {categories.map((cat) => (
-              <span key={cat} className="flex items-center gap-1.5">
-                <span className="text-[#30363d]">/</span>
+          {/* 카테고리 */}
+          <div className="font-mono text-sm text-[#484f58] mb-6 text-center">
+            {categories.map((cat, i) => (
+              <span key={cat}>
+                {i > 0 && <span className="text-[#30363d]"> / </span>}
                 <Link
-                  href={`/category/${encodeURIComponent(cat)}`}
+                  href={`/posts?category=${encodeURIComponent(cat)}`}
                   className="hover:text-[#8b949e] transition-colors"
                 >
                   {cat}
                 </Link>
               </span>
             ))}
-            <span className="text-[#30363d]">/</span>
-            <span className="text-[#8b949e] truncate max-w-[200px]">{post.title}</span>
-          </nav>
+          </div>
 
           {/* Article Header */}
-          <header className="mb-9">
-            {/* Category pill */}
-            {primaryCat && (
-              <div
-                className="inline-flex items-center font-mono text-xs font-bold rounded-full px-3 py-1 mb-4"
-                style={{
-                  color: catColor,
-                  background: `${catColor}18`,
-                  border: `1px solid ${catColor}33`,
-                }}
-              >
-                #{primaryCat}
-              </div>
-            )}
-
+          <header className="mb-9 text-center">
             {/* Title */}
             <h1 className="text-3xl sm:text-4xl font-black text-[#e6edf3] leading-tight tracking-tight mb-5">
               {post.title}
             </h1>
 
             {/* Meta */}
-            <div className="flex items-center gap-3 flex-wrap font-mono text-xs text-[#484f58] pb-6 border-b border-[#30363d]">
-              <span>{formattedDate}</span>
-              <span className="text-[#30363d]">·</span>
-              <span>{post.readingTime}</span>
+            <div className="font-mono text-xs text-[#484f58] pb-6 border-b border-[#30363d]">
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                <span className="text-[#10b981]">{formattedDate}</span>
+                <span className="text-[#30363d]">·</span>
+                <span className="text-[#10b981]">{post.readingTime}</span>
+              </div>
               {post.series && (
-                <>
-                  <span className="text-[#30363d]">·</span>
-                  <span className="text-[#a78bfa] flex items-center gap-1">
-                    series:{' '}
-                    <Link href="/series" className="hover:underline">
-                      {post.series}
-                    </Link>
-                  </span>
-                </>
+                <div className="mt-2 text-[#a78bfa]">
+                  series: {post.series}
+                </div>
               )}
             </div>
           </header>
@@ -173,10 +151,26 @@ export default async function PostPage({ params }: Props) {
               prose-table:text-sm
               prose-img:rounded-xl
               prose-pre:p-0 prose-pre:bg-transparent prose-pre:rounded-none prose-pre:m-0
-              [&_figure]:m-0"
+              [&_figure]:m-0
+              [&>h1:first-child]:hidden"
           >
             {content}
           </div>
+
+          {/* 태그 */}
+          {tags.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap mt-12 pb-8 mb-10 border-b border-[#21262d]">
+              {tags.map((tag) => (
+                <Link
+                  key={tag}
+                  href={`/tag/${encodeURIComponent(tag)}`}
+                  className="inline-flex items-center font-mono text-xs text-[#8b949e] bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-1.5 hover:text-[#10b981] hover:border-[#10b981] transition-colors"
+                >
+                  #{tag}
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* Post Navigation */}
           <PostNav prev={prev} next={next} />

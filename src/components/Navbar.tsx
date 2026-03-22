@@ -33,7 +33,7 @@ export default function Navbar() {
 
   const isHome = pathname === '/'
   const isActive = (href: string) => {
-    if (href === '/blog') return pathname === '/blog'
+    if (href === '/posts') return pathname === '/posts'
     return pathname.startsWith(href)
   }
 
@@ -56,9 +56,9 @@ export default function Navbar() {
       {/* Nav links - hidden on mobile */}
       <div className="hidden sm:flex items-center gap-0.5 shrink-0">
         <Link
-          href="/blog"
+          href="/posts"
           className={`text-sm font-medium px-3.5 py-1.5 rounded-lg transition-colors ${
-            isActive('/blog')
+            isActive('/posts')
               ? 'text-[#a78bfa] font-semibold'
               : 'text-[#8b949e] hover:text-white hover:bg-[#161b22]'
           }`}
@@ -148,10 +148,10 @@ export default function Navbar() {
       {menuOpen && (
         <div className="sm:hidden absolute top-14 left-0 right-0 bg-[#0d1117] border-b border-[#30363d] px-4 py-4 flex flex-col gap-1 z-50">
           <Link
-            href="/blog"
+            href="/posts"
             onClick={() => setMenuOpen(false)}
             className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
-              isActive('/blog') ? 'text-[#10b981]' : 'text-[#8b949e] hover:text-white hover:bg-[#161b22]'
+              isActive('/posts') ? 'text-[#10b981]' : 'text-[#8b949e] hover:text-white hover:bg-[#161b22]'
             }`}
           >
             Posts
