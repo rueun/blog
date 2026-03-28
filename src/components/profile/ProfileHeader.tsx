@@ -16,7 +16,7 @@ export default function ProfileHeader() {
 
   return (
     <header className="sticky top-0 z-50 bg-base/80 backdrop-blur-xl">
-      <div className="max-w-[720px] mx-auto px-6 h-16 flex items-center justify-between">
+      <div className="max-w-[860px] mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/resume" className="group flex items-center gap-2">
           <span className="text-[13px] font-semibold tracking-tight text-text-primary">
             신은정
