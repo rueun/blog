@@ -16,7 +16,7 @@ export default function PortfolioPage() {
   ]
 
   return (
-    <div className="max-w-[860px] mx-auto px-6 pt-16 pb-28">
+    <div className="max-w-[920px] mx-auto px-6 pt-16 pb-28">
       <FadeIn>
         <div className="mb-10">
           <h1 className="text-[28px] font-extrabold text-text-primary tracking-tight mb-2">

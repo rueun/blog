@@ -51,9 +51,9 @@ export default function ProjectCard({
       <div className="p-6 sm:p-8">
         <div className="flex flex-col sm:flex-row gap-6">
           {/* 이미지 */}
-          <div className="sm:w-56 shrink-0 rounded-lg overflow-hidden border border-border-muted bg-surface">
+          <div className="sm:w-64 shrink-0 rounded-lg overflow-hidden border border-border-muted">
             {image ? (
-              <img src={image} alt={title} className="w-full h-auto" />
+              <img src={image} alt={title} className="w-full h-full object-cover object-top" />
             ) : (
               <div className="w-full aspect-[4/3] flex items-center justify-center bg-surface-alt">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-text-muted/30">

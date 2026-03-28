@@ -6,7 +6,7 @@ import { FadeInStagger, FadeInItem } from '@/components/profile/FadeIn'
 
 export default function ResumePage() {
   return (
-    <div className="max-w-[860px] mx-auto px-6 pt-16 pb-28">
+    <div className="max-w-[920px] mx-auto px-6 pt-16 pb-28">
       {/* ═══ Hero ═══ */}
       <FadeIn>
         <section className="mb-20 rounded-2xl border border-[#a78bfa]/20 bg-gradient-to-br from-[#a78bfa]/5 via-surface to-surface p-8">
@@ -340,23 +340,26 @@ function Mark({ children }: { children: React.ReactNode }) {
   return <span className="font-semibold text-text-primary">{children}</span>
 }
 
+const skillColors: Record<string, string> = {
+  Backend: '#6b9bd2',
+  Database: '#5bae8d',
+  DevOps: '#c9a84c',
+  Test: '#c97070',
+  Tools: '#9a85c4',
+}
+
 function SkillCard({ label, items }: { label: string; items: { name: string; level: 'main' | 'interest' }[] }) {
+  const color = skillColors[label] || '#6b7280'
   return (
     <div className="rounded-xl border border-border p-5">
-      <p className="text-[11px] font-semibold text-text-muted uppercase tracking-[0.08em] mb-3">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-3" style={{ color }}>{label}</p>
       <div className="flex flex-wrap gap-2">
         {items.map((s) => (
           <span
             key={s.name}
-            className={`inline-flex items-center gap-1.5 text-[12px] rounded-full px-3 py-1 border ${
-              s.level === 'interest'
-                ? 'text-[#a78bfa] border-[#a78bfa]/20 bg-[#a78bfa]/5'
-                : 'text-text-secondary border-border bg-surface'
-            }`}
+            className="inline-flex items-center gap-1.5 text-[12px] rounded-full px-3 py-1 border text-text-secondary border-border bg-surface"
           >
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-              s.level === 'interest' ? 'bg-[#a78bfa]' : 'bg-[#10b981]'
-            }`} />
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
             {s.name}
           </span>
         ))}
