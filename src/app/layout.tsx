@@ -13,8 +13,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Rueun's Blog",
-    template: "%s | Rueun's Blog",
+    default: 'devlog | rueun',
+    template: '%s | devlog',
   },
   description: 'Rueun의 개발 블로그 - Java, Spring, 백엔드 개발',
   alternates: {
@@ -49,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
       >
         <ThemeProvider>
-          <AnnounceBanner>{children}</AnnounceBanner>
+          {children}
         </ThemeProvider>
       </body>
     </html>
