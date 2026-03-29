@@ -76,6 +76,26 @@ export default function Navbar() {
         >
           Series
         </Link>
+        <Link
+          href="/resume"
+          className={`text-sm font-medium px-3.5 py-1.5 rounded-lg transition-colors ${
+            isActive('/resume')
+              ? 'text-[#a78bfa] font-semibold'
+              : 'text-text-secondary hover:text-text-primary hover:bg-surface'
+          }`}
+        >
+          Resume
+        </Link>
+        <Link
+          href="/portfolio"
+          className={`text-sm font-medium px-3.5 py-1.5 rounded-lg transition-colors ${
+            isActive('/portfolio')
+              ? 'text-[#a78bfa] font-semibold'
+              : 'text-text-secondary hover:text-text-primary hover:bg-surface'
+          }`}
+        >
+          Portfolio
+        </Link>
       </div>
 
       {/* Spacer */}
@@ -161,6 +181,24 @@ export default function Navbar() {
             }`}
           >
             Series
+          </Link>
+          <Link
+            href="/resume"
+            onClick={() => setMenuOpen(false)}
+            className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
+              isActive('/resume') ? 'text-[#10b981]' : 'text-text-secondary hover:text-text-primary hover:bg-surface'
+            }`}
+          >
+            Resume
+          </Link>
+          <Link
+            href="/portfolio"
+            onClick={() => setMenuOpen(false)}
+            className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
+              isActive('/portfolio') ? 'text-[#10b981]' : 'text-text-secondary hover:text-text-primary hover:bg-surface'
+            }`}
+          >
+            Portfolio
           </Link>
           <div className="flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-2 mt-1">
             <span className="text-text-muted text-sm shrink-0">⌕</span>

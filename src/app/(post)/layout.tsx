@@ -1,5 +1,6 @@
 import ReadingProgress from '@/components/ReadingProgress'
 import Footer from '@/components/Footer'
+import AnnounceBanner from '@/components/AnnounceBanner'
 import PostLayoutClient from '@/components/PostLayoutClient'
 import { getCategoryTree, getAllPostMetas } from '@/lib/posts'
 
@@ -13,7 +14,7 @@ export default function PostGroupLayout({ children }: { children: React.ReactNod
   }))
 
   return (
-    <>
+    <AnnounceBanner>
       <ReadingProgress />
       <PostLayoutClient
         categoryTree={categoryTree}
@@ -23,6 +24,6 @@ export default function PostGroupLayout({ children }: { children: React.ReactNod
         <main className="flex-1 relative z-[1]">{children}</main>
       </PostLayoutClient>
       <Footer />
-    </>
+    </AnnounceBanner>
   )
 }
