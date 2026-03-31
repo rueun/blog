@@ -96,11 +96,13 @@ function PostCard({ post, currentTag }: { post: PostMeta; currentTag: string }) 
   const categories = post.categories ?? []
   const tags = post.tags ?? []
   const date = post.date
-    ? new Date(post.date).toLocaleDateString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
+    ? (() => {
+        const d = new Date(post.date)
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${y}.${m}.${day}`
+      })()
     : ''
 
   return (

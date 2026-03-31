@@ -325,9 +325,7 @@ function SidebarContent({
               {post.title}
             </p>
             <p className="font-mono text-[10px] text-text-muted mt-0.5">
-              {new Date(post.date).toLocaleDateString('ko-KR', {
-                year: 'numeric', month: '2-digit', day: '2-digit',
-              })}
+              {`${new Date(post.date).getFullYear()}.${String(new Date(post.date).getMonth() + 1).padStart(2, '0')}.${String(new Date(post.date).getDate()).padStart(2, '0')}`}
             </p>
           </Link>
         ))}
