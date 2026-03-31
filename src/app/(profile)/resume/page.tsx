@@ -39,7 +39,7 @@ export default function ResumePage() {
 
           <FadeInStagger className="space-y-2.5">
             <IntroItem>
-              서비스의 <Mark>기획부터 런칭까지 리드</Mark>한 경험이 있는 4년차 백엔드 개발자입니다.
+              서비스의 <Mark>기획부터 런칭까지 전 과정에 참여</Mark>한 경험이 있는 4년차 백엔드 개발자입니다.
             </IntroItem>
             <IntroItem>
               <Mark>도메인 주도 설계(DDD)</Mark>와 <Mark>클린 아키텍처</Mark>를 실무에 적용하며, 확장 가능하고 유지보수하기 좋은 구조를 설계합니다.
@@ -60,7 +60,7 @@ export default function ResumePage() {
       {/* ═══ Skills ═══ */}
       <FadeIn delay={0.1}>
         <ResumeSection number="01" title="Skills">
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <SkillCard label="Backend" items={[
               { name: 'Java', level: 'main' },
               { name: 'Spring Boot', level: 'main' },
@@ -72,7 +72,6 @@ export default function ResumePage() {
               { name: 'Spring AOP', level: 'main' },
               { name: 'Spring Cloud Config', level: 'main' },
             ]} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <SkillCard label="Database" items={[
                 { name: 'MySQL', level: 'main' },
                 { name: 'MariaDB', level: 'main' },
@@ -99,7 +98,11 @@ export default function ResumePage() {
                 { name: 'Git', level: 'main' },
                 { name: 'Notion', level: 'main' },
               ]} />
-            </div>
+              <SkillCard label="AI / AX" items={[
+                { name: 'Claude Code', level: 'main' },
+                { name: 'OpenAI Codex', level: 'main' },
+                { name: 'GitHub Copilot', level: 'main' },
+              ]} />
           </div>
         </ResumeSection>
       </FadeIn>
@@ -360,6 +363,7 @@ const skillColors: Record<string, string> = {
   DevOps: '#c9a84c',
   Test: '#c97070',
   Tools: '#9a85c4',
+  'AI / AX': '#e07a5f',
 }
 
 function SkillCard({ label, items }: { label: string; items: { name: string; level: 'main' | 'interest' }[] }) {
