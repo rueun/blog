@@ -54,6 +54,47 @@ export default function PortfolioPage() {
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard
             number="01"
+            title="한양사이버대학교 논문지도시스템"
+            subtitle="논문 심사 관리"
+            period="2025.12 ~ 2026.03"
+            type="회사 프로젝트"
+            description="대학교 논문 심사 프로세스를 관리하는 시스템을 클린 아키텍처 기반으로 설계·개발했습니다. 도메인 엔티티와 영속성 엔티티를 분리하여 기술 스택 변경 시 최소한의 코드 수정으로 대응할 수 있는 구조를 구현했습니다."
+            skills={['Java', 'Spring Boot', 'Oracle', 'MyBatis', 'Spring Security', 'OpenFeign', 'Testcontainers']}
+            roles={[
+              '백엔드 아키텍처 설계 및 개발',
+              '클린 아키텍처 기반 멀티 레이어 구조 설계',
+              'WAR 패키징 및 고객사 Tomcat 직접 배포',
+              'Claude Code 기반 AX 워크플로우 구축 및 팀 적용',
+            ]}
+            achievements={[
+              { title: '아키텍처', items: [
+                '도메인 엔티티와 영속성 엔티티 완전 분리로 기술 스택 변경 시 도메인 레이어 오염 없이 대응',
+                'Port & Adapter 패턴으로 Oracle/MyBatis 의존성을 인프라 계층에 격리',
+                '16개 도메인 모듈의 책임을 명확히 분리한 클린 아키텍처 구현',
+              ]},
+              { title: 'AX (AI Transformation)', items: [
+                'Claude Code 스킬 및 CLAUDE.md 파일을 팀 회의를 통해 정의하고 프로젝트에 적용',
+                'GitHub Actions + Claude 연동 자동 코드 리뷰 파이프라인 구축',
+                'AI가 효과적으로 코드를 작성할 수 있도록 프로젝트 구조와 컨텍스트를 설계',
+              ]},
+              { title: 'DDD 설계', items: [
+                'User 인터페이스 기반 다형성으로 Admin/Manager/Professor/Student 역할 모델링',
+                'Value Object(UserId, UserIdentifier 등)와 Collection VO(Users, Workflows) 활용',
+                '@Builder(toBuilder=true) 패턴으로 불변 객체 + 상태 변경 구현',
+              ]},
+              { title: '인프라 · 배포', items: [
+                'WAR 빌드 후 고객사 서버 Tomcat에 직접 배포',
+                'GitHub Actions CI/CD (빌드 → WAR 전송 → Tomcat 재기동 → Health Check)',
+                'Testcontainers(Oracle) 기반 통합 테스트 환경 구축',
+              ]},
+            ]}
+            reflection="AX를 팀 단위로 적용하면서, AI와 협업하기 위해서는 프로젝트 구조 자체가 잘 정리되어 있어야 한다는 것을 깨달았습니다. CLAUDE.md와 스킬 정의를 팀원들과 함께 설계하는 과정이 곧 아키텍처를 정리하는 과정이었습니다."
+          />
+        </div>
+
+        <div className={tab !== 'work' ? 'hidden' : ''}>
+          <ProjectCard
+            number="02"
             title="CopyKiller Lite"
             subtitle="표이미지 표절검사"
             period="2025.09 ~ 2025.10"
@@ -92,7 +133,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard
-            number="02"
+            number="03"
             title="CK FactChecker"
             subtitle="뉴스 기사 팩트체크 서비스"
             period="2025.08"
@@ -128,7 +169,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard
-            number="03"
+            number="04"
             title="CopyKiller HR"
             subtitle="ATS (Applicant Tracking System)"
             period="2023.08 ~ 2025.07"
@@ -173,7 +214,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'personal' ? 'hidden' : ''}>
           <ProjectCard
-            number="04"
+            number="05"
             title="콘서트 예약 시스템"
             period="2024.10 ~ 2024.11"
             type="개인 프로젝트"
@@ -207,7 +248,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard
-            number="05"
+            number="06"
             title="Monster"
             subtitle="AI 면접 서비스"
             period="2022.09 ~ 2023.09"

@@ -117,6 +117,20 @@ export default function ResumePage() {
             </div>
             <p className="text-[13px] text-text-muted mb-6">백엔드 개발자 — 2022.09 ~ 현재</p>
 
+            {/* CK TMS */}
+            <ProjectBlock
+              title="한양사이버대학교 논문지도시스템"
+              subtitle="논문 심사 관리"
+              period="2025.12 ~ 2026.03"
+              description="대학교 논문 심사 프로세스를 관리하는 시스템을 클린 아키텍처 기반으로 설계·개발했습니다."
+              skills={['Java', 'Spring Boot', 'Oracle', 'MyBatis', 'Spring Security', 'OpenFeign', 'Testcontainers']}
+            >
+              <BulletItem>도메인 엔티티와 영속성 엔티티 완전 분리, <Mark>기술 스택 변경 시 도메인 레이어 오염 없이 대응</Mark></BulletItem>
+              <BulletItem>16개 도메인 모듈 책임 분리, Port & Adapter 패턴으로 Oracle/MyBatis 의존성 격리</BulletItem>
+              <BulletItem><Mark>Claude Code 기반 AX 워크플로우</Mark> 구축 — 스킬·CLAUDE.md 팀 회의로 정의, 자동 코드 리뷰 파이프라인</BulletItem>
+              <BulletItem>WAR 빌드 후 고객사 Tomcat 직접 배포, GitHub Actions CI/CD 구축</BulletItem>
+            </ProjectBlock>
+
             {/* CopyKiller Lite */}
             <ProjectBlock
               title="CopyKiller Lite"

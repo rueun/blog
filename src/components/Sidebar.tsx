@@ -125,7 +125,7 @@ function SidebarContent({
         .filter((cat) => cat._parentMatch || cat.children.length > 0)
 
   return (
-    <div className="w-64 h-full bg-base flex flex-col overflow-y-auto border-r border-border-muted">
+    <div className="w-72 h-full bg-base flex flex-col overflow-y-auto border-r border-border-muted">
       {/* 닫기 버튼 */}
       <div className="flex justify-end px-4 pt-3 shrink-0">
         <button
@@ -181,20 +181,6 @@ function SidebarContent({
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
             </svg>
             <span className="text-[9px] font-mono">Series</span>
-          </Link>
-          <Link href="/resume" className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="Resume">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-            <span className="text-[9px] font-mono">Resume</span>
-          </Link>
-          <Link href="/portfolio" className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="Portfolio">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-              <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
-            </svg>
-            <span className="text-[9px] font-mono">Portfolio</span>
           </Link>
           <Link href="/tag" className="flex flex-col items-center gap-0.5 text-text-muted hover:text-text-primary transition-colors" title="Tags">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
