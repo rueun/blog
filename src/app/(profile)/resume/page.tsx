@@ -3,10 +3,11 @@
 import Image from 'next/image'
 import FadeIn from '@/components/profile/FadeIn'
 import { FadeInStagger, FadeInItem } from '@/components/profile/FadeIn'
+import PdfDownloadButton from '@/components/PdfDownloadButton'
 
 export default function ResumePage() {
   return (
-    <div className="max-w-[920px] mx-auto px-6 pt-16 pb-28">
+    <div id="resume-content" className="max-w-[920px] mx-auto px-6 pt-16 pb-28">
       {/* ═══ Hero ═══ */}
       <FadeIn>
         <section className="mb-20 rounded-2xl border border-[#a78bfa]/20 bg-gradient-to-br from-[#a78bfa]/5 via-surface to-surface p-8">
@@ -34,21 +35,26 @@ export default function ResumePage() {
               <ContactIcon href="/" label="Blog" external icon={
                 <span className="text-[16px] font-extrabold leading-none">B</span>
               } />
+              <div className="w-px h-5 bg-border mx-1" />
+              <PdfDownloadButton />
             </div>
           </div>
 
           <FadeInStagger className="space-y-2.5">
             <IntroItem>
-              서비스의 <Mark>기획부터 런칭까지 전 과정에 참여</Mark>한 경험이 있는 4년차 백엔드 개발자입니다.
+              안녕하세요😃 4년차 백엔드 개발자 신은정입니다. 저는 서비스의 <Mark>기획부터 런칭까지 전 과정에 참여</Mark>한 경험이 있으며, 프로젝트 리더로서 일정과 의사결정을 주도한 경험이 있습니다.
+            </IntroItem>
+           <IntroItem>
+              기술적 역량은 물론 <Mark>비즈니스 목표를 함께 고려</Mark>하여 문제를 해결하려 노력합니다.
             </IntroItem>
             <IntroItem>
               <Mark>도메인 주도 설계(DDD)</Mark>와 <Mark>클린 아키텍처</Mark>를 실무에 적용하며, 확장 가능하고 유지보수하기 좋은 구조를 설계합니다.
             </IntroItem>
             <IntroItem>
-              최근에는 <Mark>AX(AI Transformation)</Mark>에 관심을 갖고 있으며, AI가 코드를 잘 작성할 수 있도록 프로젝트를 구조화하고 컨텍스트를 설계하는 방법을 탐구하고 있습니다.
+              <Mark>누구나 읽고 이해하기 쉬운 코드가 좋은 코드</Mark>라 생각하며, 가독성과 유지보수성을 고려한 코딩 스타일을 지향합니다.
             </IntroItem>
             <IntroItem>
-              누구나 읽고 이해하기 쉬운 코드가 좋은 코드라 생각하며, <Mark>가독성과 유지보수성</Mark>을 고려한 코딩 스타일을 지향합니다.
+              최근에는 <Mark>AX(AI Transformation)</Mark>에 관심을 갖고 있으며, AI가 코드를 잘 작성할 수 있도록 프로젝트를 구조화하고 컨텍스트를 설계하는 방법을 탐구하고 있습니다.
             </IntroItem>
             <IntroItem>
               학습한 내용을 <a href="https://github.com/rueun" target="_blank" rel="noopener noreferrer" className="text-[#a78bfa] hover:underline font-medium">GitHub</a>과 <a href="/" className="text-[#a78bfa] hover:underline font-medium">블로그</a>에 기록하며, 개발 과정에서의 고민과 의사결정을 문서화합니다.
@@ -131,7 +137,7 @@ export default function ResumePage() {
               <BulletItem>도메인 엔티티와 영속성 엔티티 완전 분리, <Mark>기술 스택 변경 시 도메인 레이어 오염 없이 대응</Mark></BulletItem>
               <BulletItem>16개 도메인 모듈 책임 분리, Port & Adapter 패턴으로 Oracle/MyBatis 의존성 격리</BulletItem>
               <BulletItem><Mark>Claude Code 기반 AX 워크플로우</Mark> 구축 — 스킬·CLAUDE.md 팀 회의로 정의, 자동 코드 리뷰 파이프라인</BulletItem>
-              <BulletItem>WAR 빌드 후 고객사 Tomcat 직접 배포, GitHub Actions CI/CD 구축</BulletItem>
+              <BulletItem>GitHub Actions CI/CD 구축</BulletItem>
             </ProjectBlock>
 
             {/* CopyKiller Lite */}
@@ -144,9 +150,8 @@ export default function ResumePage() {
               skills={['Java', 'Spring Boot', 'MariaDB', 'Redis Streams', 'JPA', 'QueryDSL', 'Ceph S3']}
             >
               <BulletItem>표·이미지·차트 표절검사 백엔드 전체 설계 및 개발</BulletItem>
-              <BulletItem>클린 아키텍처 + DDD 기반 멀티모듈 구조 설계</BulletItem>
+              <BulletItem>클린 아키텍처 + DDD 기반 <Mark>멀티모듈 구조 설계</Mark></BulletItem>
               <BulletItem>Redis Streams + Consumer Group 기반 <Mark>비동기 분석 파이프라인</Mark> 구축</BulletItem>
-              <BulletItem>도메인 상태 머신으로 분석 단계 전이 규칙 캡슐화</BulletItem>
               <BulletItem>Presigned URL 방식 파일 처리로 서버 부하 최소화</BulletItem>
             </ProjectBlock>
 
@@ -155,13 +160,11 @@ export default function ResumePage() {
               title="CK FactChecker"
               subtitle="뉴스 기사 팩트체크 서비스"
               period="2025.08"
-              description="지식 트리플 기반 의미적 유사도를 활용한 뉴스 기사 팩트체크 서비스를 기획부터 출시까지 개발했습니다."
+              description="의미적 유사도를 활용한 뉴스 기사 팩트체크 서비스를 출시했습니다."
               linkUrl="https://facts.copykiller.com/"
               skills={['Java', 'Spring Boot', 'MariaDB', 'JPA', 'QueryDSL', 'Spring WebFlux']}
             >
-              <BulletItem>지식 트리플 기반 팩트체크 서비스 백엔드 설계 및 개발</BulletItem>
               <BulletItem>클린 아키텍처 + DDD 기반 멀티모듈 구조, <Mark>UseCase 단위 비즈니스 흐름 관리</Mark></BulletItem>
-              <BulletItem>뉴스 기사 → 문장 분할 → 개체명 인식 → 지식 트리플 → 유사도 비교 파이프라인 구현</BulletItem>
               <BulletItem>Dead Letter + Google Chat 알림으로 장애 대응 체계 구축</BulletItem>
             </ProjectBlock>
 
@@ -170,13 +173,13 @@ export default function ResumePage() {
               title="CopyKiller HR"
               subtitle="ATS (Applicant Tracking System)"
               period="2023.08 ~ 2025.07"
-              description="채용 관리 시스템 신규 서비스를 기획부터 런칭까지 전 과정에 참여하고, 프로젝트 리더로서 일정과 기술적 의사결정을 주도했습니다."
+              description="채용 관리 시스템 신규 서비스를 기획부터 런칭까지 전 과정에 참여하고, 프로젝트 리더로서 일정과 의사결정을 주도했습니다."
               linkUrl="https://hr.copykiller.com"
               skills={['Java', 'Spring Boot', 'MySQL', 'JPA', 'QueryDSL', 'AWS', 'Docker', 'JUnit']}
             >
-              <BulletItem highlight>서비스 기획 → 런칭 전 과정 참여, <Mark>프로젝트 리더</Mark></BulletItem>
-              <BulletItem>코드 리팩토링 + 테스트 도입으로 <Mark>QA 에러 60% 감소</Mark> (30건 → 5건 미만)</BulletItem>
-              <BulletItem>대용량 데이터 처리 최적화 — <Mark>처리시간 90% 단축</Mark> (2.37s → 80.4ms)</BulletItem>
+              <BulletItem>프로젝트 리더 역할로 일정 및 진척도 관리</BulletItem>
+              <BulletItem>코드 리팩토링 + 테스트 도입으로 <Mark>QA 에러 60% 감소 (30건 → 5건 미만)</Mark></BulletItem>
+              <BulletItem>대용량 데이터 처리 성능 최적화로 <Mark>처리 시간 90% 단축 (2.37s → 80.4ms)</Mark></BulletItem>
               <BulletItem>이벤트 기반 설계로 비관심사 분리, 확장성 강화</BulletItem>
               <BulletItem>PG사 연동 주문/결제 시스템 설계·개발, 비관적 락 동시성 제어</BulletItem>
               <BulletItem>GitHub Actions 버저닝 자동화, 구글챗 장애 알람 시스템 도입</BulletItem>
@@ -304,7 +307,7 @@ function ProjectBlock({ title, subtitle, period, description, linkUrl, skills, c
   title: string; subtitle: string; period: string; description?: string; linkUrl?: string; skills: string[]; children: React.ReactNode; last?: boolean
 }) {
   return (
-    <div className={last ? '' : 'mb-10 pb-10 border-b border-border-muted'}>
+    <div className={last ? 'pb-6' : 'mb-10 pb-10 border-b border-border-muted'}>
       <div className="flex items-baseline gap-2 mb-1">
         {linkUrl ? (
           <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-baseline gap-1 text-[14px] font-semibold text-text-primary hover:text-[#a78bfa] transition-colors">
@@ -331,12 +334,24 @@ function ProjectBlock({ title, subtitle, period, description, linkUrl, skills, c
   )
 }
 
-function BulletItem({ children, highlight }: { children: React.ReactNode; highlight?: boolean }) {
+function BulletItem({ children, highlight, sub }: { children: React.ReactNode; highlight?: boolean; sub?: string[] }) {
   return (
     <FadeInItem>
       <div className="flex items-start gap-2.5 text-[13.5px] leading-[1.65] text-text-secondary">
         <span className={`mt-[7px] w-1 h-1 rounded-full shrink-0 ${highlight ? 'bg-[#10b981]' : 'bg-text-muted'}`} />
-        <span>{children}</span>
+        <div>
+          <span>{children}</span>
+          {sub && sub.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              {sub.map((item, i) => (
+                <div key={i} className="flex items-start gap-2 text-[12.5px] text-text-muted leading-[1.6] ml-1">
+                  <span className="mt-[7px] w-[3px] h-[3px] rounded-full shrink-0 bg-border" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </FadeInItem>
   )

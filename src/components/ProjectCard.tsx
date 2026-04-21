@@ -1,11 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+
+function renderBold(text: string) {
+  const parts = text.split(/\*\*(.*?)\*\*/g)
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i} className="font-semibold text-text-primary">{part}</strong> : part
+  )
+}
+
+interface AchievementItem {
+  text: string
+  sub?: string[]
+}
 
 interface Achievement {
   title: string
-  items: string[]
+  items: (string | AchievementItem)[]
 }
 
 interface Props {
@@ -18,11 +30,12 @@ interface Props {
   skills: string[]
   roles?: string[]
   achievements: Achievement[]
-  reflection?: string
+  reflection?: string | string[]
   reflectionLink?: { label: string; url: string }
   githubUrl?: string
   linkUrl?: string
   image?: string
+  defaultOpen?: boolean
 }
 
 export default function ProjectCard({
@@ -40,8 +53,13 @@ export default function ProjectCard({
   githubUrl,
   linkUrl,
   image,
+  defaultOpen,
 }: Props) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen ?? false)
+
+  useEffect(() => {
+    if (defaultOpen) setOpen(true)
+  }, [defaultOpen])
 
   const externalUrl = linkUrl || githubUrl
 
@@ -51,7 +69,7 @@ export default function ProjectCard({
       <div className="p-6 sm:p-8">
         <div className="flex flex-col sm:flex-row gap-6">
           {/* 이미지 */}
-          <div className="sm:w-64 shrink-0 rounded-lg overflow-hidden border border-border-muted">
+          <div className="sm:w-64 sm:h-40 shrink-0 rounded-lg overflow-hidden border border-border-muted">
             {image ? (
               <img src={image} alt={title} className="w-full h-full object-cover object-top" />
             ) : (
@@ -144,8 +162,8 @@ export default function ProjectCard({
                     <h4 className="text-[13px] font-bold text-text-primary mb-4">담당 업무</h4>
                     <ul className="space-y-2">
                       {roles.map((role, i) => (
-                        <li key={i} className="flex items-start gap-2 text-[13px] text-text-secondary leading-[1.6]">
-                          <span className="text-text-muted mt-1.5 shrink-0">·</span>
+                        <li key={i} className="flex items-baseline gap-2 text-[13px] text-text-secondary leading-[1.6]">
+                          <span className="text-text-muted shrink-0">·</span>
                           <span>{role}</span>
                         </li>
                       ))}
@@ -160,12 +178,28 @@ export default function ProjectCard({
                     <div key={a.title}>
                       <h5 className="text-[13.5px] font-semibold text-text-primary mb-2">{a.title}</h5>
                       <ul className="space-y-2">
-                        {a.items.map((item, i) => (
-                          <li key={i} className="flex items-baseline gap-2 text-[13px] text-text-secondary leading-[1.65]">
-                            <span className="text-text-muted shrink-0">·</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
+                        {a.items.map((item, i) => {
+                          const text = typeof item === 'string' ? item : item.text
+                          const sub = typeof item === 'string' ? undefined : item.sub
+                          return (
+                            <li key={i}>
+                              <div className="flex items-baseline gap-2 text-[13px] text-text-secondary leading-[1.65]">
+                                <span className="text-text-muted shrink-0">·</span>
+                                <span>{renderBold(text)}</span>
+                              </div>
+                              {sub && sub.length > 0 && (
+                                <ul className="ml-5 mt-1 space-y-1">
+                                  {sub.map((s, j) => (
+                                    <li key={j} className="flex items-baseline gap-2 text-[12px] text-text-muted leading-[1.6]">
+                                      <span className="shrink-0">-</span>
+                                      <span>{renderBold(s)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </li>
+                          )
+                        })}
                       </ul>
                     </div>
                   ))}
@@ -176,15 +210,32 @@ export default function ProjectCard({
               {reflection && (
                 <div className="mt-8 pt-6 border-t border-border-muted">
                   <h4 className="text-[13px] font-bold text-text-primary mb-3">회고</h4>
-                  <p className="text-[13.5px] text-text-secondary leading-[1.75]">
-                    {reflection}
-                    {reflectionLink && (
-                      <>
-                        {' '}
-                        <a href={reflectionLink.url} className="text-[#a78bfa] hover:underline font-medium">{reflectionLink.label} →</a>
-                      </>
-                    )}
-                  </p>
+                  {Array.isArray(reflection) ? (
+                    <ul className="space-y-2">
+                      {reflection.map((item, i) => (
+                        <li key={i} className="flex items-baseline gap-2 text-[13px] text-text-secondary leading-[1.7]">
+                          <span className="text-text-muted shrink-0">·</span>
+                          <span>{renderBold(item)}</span>
+                        </li>
+                      ))}
+                      {reflectionLink && (
+                        <li className="flex items-baseline gap-2 text-[13px] leading-[1.7]">
+                          <span className="text-text-muted shrink-0">·</span>
+                          <a href={reflectionLink.url} className="text-[#a78bfa] hover:underline font-medium">{reflectionLink.label} →</a>
+                        </li>
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="text-[13.5px] text-text-secondary leading-[1.75]">
+                      {reflection}
+                      {reflectionLink && (
+                        <>
+                          {' '}
+                          <a href={reflectionLink.url} className="text-[#a78bfa] hover:underline font-medium">{reflectionLink.label} →</a>
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

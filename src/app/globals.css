@@ -223,3 +223,38 @@ body::before {
 .prose :not(pre) > code::after {
   content: none;
 }
+
+/* Print 스타일 */
+@media print {
+  @page {
+    margin: 10mm 15mm;
+  }
+
+  /* 헤더/푸터 숨기기 */
+  header, footer, nav {
+    display: none !important;
+  }
+
+  /* 배경색 출력 */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 불필요한 여백 제거 */
+  body {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* 섹션 제목 뒤에서 끊기지 않도록 */
+  h2, h3, h4 {
+    break-after: avoid;
+  }
+
+  /* 섹션 간 여백 보장 */
+  section {
+    margin-bottom: 4rem !important;
+    padding-top: 1.5rem !important;
+  }
+}
