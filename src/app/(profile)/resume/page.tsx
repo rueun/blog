@@ -119,7 +119,20 @@ export default function ResumePage() {
           <div className="relative pl-6 border-l border-border">
             <div className="absolute -left-[5px] top-1 w-[9px] h-[9px] rounded-full bg-[#10b981] ring-2 ring-base" />
             <div className="mb-1 flex items-center gap-3 flex-wrap">
-              <h3 className="text-[15px] font-semibold text-text-primary">무하유</h3>
+              <h3 className="text-[15px] font-semibold text-text-primary">
+                <a
+                  href="https://www.muhayu.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-baseline gap-1 hover:text-[#a78bfa] transition-colors"
+                >
+                  무하유
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="translate-y-[-1px]">
+                    <path d="M7 17L17 7"/>
+                    <path d="M7 7h10v10"/>
+                  </svg>
+                </a>
+              </h3>
               <span className="text-[10px] font-semibold text-[#10b981] bg-[#10b981]/10 rounded px-1.5 py-0.5 leading-none">
                 현재 재직중
               </span>
@@ -133,12 +146,28 @@ export default function ResumePage() {
               period="2025.12 ~ 2026.03"
               description="대학교 논문 심사 프로세스를 관리하는 시스템을 클린 아키텍처 기반으로 설계·개발했습니다."
               skills={['Java', 'Spring Boot', 'Oracle', 'MyBatis', 'Spring Security', 'OpenFeign', 'Testcontainers']}
-            >
-              <BulletItem>도메인 엔티티와 영속성 엔티티 완전 분리, <Mark>기술 스택 변경 시 도메인 레이어 오염 없이 대응</Mark></BulletItem>
-              <BulletItem>16개 도메인 모듈 책임 분리, Port & Adapter 패턴으로 Oracle/MyBatis 의존성 격리</BulletItem>
-              <BulletItem><Mark>Claude Code 기반 AX 워크플로우</Mark> 구축 — 스킬·CLAUDE.md 팀 회의로 정의, 자동 코드 리뷰 파이프라인</BulletItem>
-              <BulletItem>GitHub Actions CI/CD 구축</BulletItem>
-            </ProjectBlock>
+              achievements={[
+                { title: '아키텍처', items: [
+                  '**도메인 엔티티와 영속성 엔티티 완전 분리**로 기술 스택 변경 시 도메인 레이어 오염 없이 대응',
+                  '**Port & Adapter 패턴**으로 Oracle/MyBatis 의존성을 인프라 계층에 격리',
+                ]},
+                { title: 'AX (AI Transformation)', items: [
+                  '**Claude Code 스킬 및 CLAUDE.md** 파일을 팀 회의를 통해 정의하고 프로젝트에 적용',
+                  'GitHub Actions + Claude 연동 **자동 코드 리뷰 파이프라인** 구축',
+                  'AI가 효과적으로 코드를 작성할 수 있도록 **프로젝트 구조와 컨텍스트를 설계**',
+                ]},
+                { title: 'DDD 설계', items: [
+                  'User 인터페이스 기반 **다형성**으로 Admin/Manager/Professor/Student 역할 모델링',
+                  '**Value Object**와 **Collection VO** 활용',
+                  '**@Builder(toBuilder=true)** 패턴으로 불변 객체 + 상태 변경 구현',
+                ]},
+                { title: '인프라 · 배포', items: [
+                  '**WAR 빌드** 후 고객사 서버 Tomcat에 직접 배포',
+                  '**GitHub Actions CI/CD** (빌드 → WAR 전송 → Tomcat 재기동 → Health Check)',
+                  '**Testcontainers(Oracle)** 기반 통합 테스트 환경 구축',
+                ]},
+              ]}
+            />
 
             {/* CopyKiller Lite */}
             <ProjectBlock
@@ -148,12 +177,21 @@ export default function ResumePage() {
               description="기존 텍스트 표절검사 서비스에 표·이미지·차트 등 시각 자료 표절검사 기능을 신규 개발하여 출시했습니다."
               linkUrl="https://www.copykiller.com/"
               skills={['Java', 'Spring Boot', 'MariaDB', 'Redis Streams', 'JPA', 'QueryDSL', 'Ceph S3']}
-            >
-              <BulletItem>표·이미지·차트 표절검사 백엔드 전체 설계 및 개발</BulletItem>
-              <BulletItem>클린 아키텍처 + DDD 기반 <Mark>멀티모듈 구조 설계</Mark></BulletItem>
-              <BulletItem>Redis Streams + Consumer Group 기반 <Mark>비동기 분석 파이프라인</Mark> 구축</BulletItem>
-              <BulletItem>Presigned URL 방식 파일 처리로 서버 부하 최소화</BulletItem>
-            </ProjectBlock>
+              achievements={[
+                { title: '아키텍처', items: [
+                  '**클린 아키텍처 + DDD** 기반 멀티모듈 구조 설계',
+                  '**Port & Adapter 패턴**으로 외부 의존성 분리',
+                ]},
+                { title: '비동기 파이프라인', items: [
+                  '**Redis Streams + Consumer Group** 기반 at-least-once 보장 비동기 처리',
+                  '**Transactional Outbox 패턴**으로 데이터 일관성 보장',
+                ]},
+                { title: '서비스 안정성', items: [
+                  'Dead Letter + Google Chat 알림으로 분석 실패 즉시 대응',
+                  '**Presigned URL** 방식 파일 처리로 서버 부하 최소화',
+                ]},
+              ]}
+            />
 
             {/* CK FactChecker */}
             <ProjectBlock
@@ -163,10 +201,17 @@ export default function ResumePage() {
               description="의미적 유사도를 활용한 뉴스 기사 팩트체크 서비스를 출시했습니다."
               linkUrl="https://facts.copykiller.com/"
               skills={['Java', 'Spring Boot', 'MariaDB', 'JPA', 'QueryDSL', 'Spring WebFlux']}
-            >
-              <BulletItem>클린 아키텍처 + DDD 기반 멀티모듈 구조, <Mark>UseCase 단위 비즈니스 흐름 관리</Mark></BulletItem>
-              <BulletItem>Dead Letter + Google Chat 알림으로 장애 대응 체계 구축</BulletItem>
-            </ProjectBlock>
+              achievements={[
+                { title: '아키텍처', items: [
+                  '**클린 아키텍처 + DDD** 기반 멀티모듈 구조 설계',
+                  '**Port & Adapter 패턴**으로 외부 API 의존성 분리',
+                  '**UseCase 단위**의 명확한 비즈니스 흐름 관리',
+                ]},
+                { title: '안정성', items: [
+                  '**AOP 기반** 관리자 권한 검증 및 IP 화이트리스트 적용',
+                ]},
+              ]}
+            />
 
             {/* CopyKiller HR */}
             <ProjectBlock
@@ -176,14 +221,34 @@ export default function ResumePage() {
               description="채용 관리 시스템 신규 서비스를 기획부터 런칭까지 전 과정에 참여하고, 프로젝트 리더로서 일정과 의사결정을 주도했습니다."
               linkUrl="https://hr.copykiller.com"
               skills={['Java', 'Spring Boot', 'MySQL', 'JPA', 'QueryDSL', 'AWS', 'Docker', 'JUnit']}
-            >
-              <BulletItem>프로젝트 리더 역할로 일정 및 진척도 관리</BulletItem>
-              <BulletItem>코드 리팩토링 + 테스트 도입으로 <Mark>QA 에러 60% 감소 (30건 → 5건 미만)</Mark></BulletItem>
-              <BulletItem>대용량 데이터 처리 성능 최적화로 <Mark>처리 시간 90% 단축 (2.37s → 80.4ms)</Mark></BulletItem>
-              <BulletItem>이벤트 기반 설계로 비관심사 분리, 확장성 강화</BulletItem>
-              <BulletItem>PG사 연동 주문/결제 시스템 설계·개발, 비관적 락 동시성 제어</BulletItem>
-              <BulletItem>GitHub Actions 버저닝 자동화, 구글챗 장애 알람 시스템 도입</BulletItem>
-            </ProjectBlock>
+              achievements={[
+                { title: '코드 품질', items: [
+                  { text: '코드 리팩토링과 테스트 도입을 통해 QA 에러 발생 건수를 약 30건에서 5건 미만으로 줄여 **QA 에러 60% 이상 감소**', sub: [
+                    'Entity와 Value Object를 구분하고, 애그리거트별 JPA 관계를 최적화하여 도메인의 복잡성 완화',
+                  ]},
+                ]},
+                { title: '성능 최적화', items: [
+                  { text: '**대용량 데이터 처리 성능 최적화**를 통해 **처리 시간 90% 이상 단축** (2.37s → 80.4ms)', sub: [
+                    'parallelStream 기반 병렬 처리 아키텍처 구현',
+                    '트랜잭션 범위 최적화 및 쿼리 최적화를 통한 DB 커넥션 연결 횟수 최소화',
+                  ]},
+                ]},
+                { title: '이벤트 아키텍처', items: [
+                  'Spring Event를 활용해 **비관심사 분리**, 코드 가독성 및 확장성 강화',
+                  '요구사항 추가/변경 시 메인 로직 수정 없이 리스너 추가/삭제로 대응',
+                ]},
+                { title: '결제 시스템', items: [
+                  'PG사 연동 **주문/결제 시스템 설계·개발**',
+                  '비관적 락을 활용한 동시성 제어 및 데이터 정합성 보장',
+                ]},
+                { title: '인프라', items: [
+                  'GitHub Actions를 활용한 **애플리케이션 버저닝 자동화**',
+                  '구글챗 알람 시스템 도입으로 장애 발생 시 평균 대응 시간 단축',
+                  'Servlet Filter 인증 처리 & Spring Interceptor를 활용하여 복잡한 ATS **권한 체계 단순화**',
+                  'AWS Presigned URL 도입으로 네트워크 부하 감소 및 응답 시간 단축',
+                ]},
+              ]}
+            />
 
             {/* Monster */}
             <ProjectBlock
@@ -193,13 +258,22 @@ export default function ResumePage() {
               description="AI 면접 서비스의 백엔드 시스템 운영 및 개발. 인증/인가 모듈 관리와 백오피스를 담당했습니다."
               linkUrl="https://service.prism.work/monster"
               skills={['Java', 'Spring Boot', 'MariaDB', 'Kafka', 'JPA', 'QueryDSL', 'AWS']}
+              achievements={[
+                { title: '성능', items: [
+                  'JPA N+1 문제 해결 및 쿼리 튜닝을 통해 약 1,000개의 쿼리를 5개로 줄이며 **성능을 90% 이상 개선**',
+                  '외부 TTS API 연동 시, 동일 질문에 대한 캐싱 처리를 구현하여 반복적인 호출 최소화',
+                ]},
+                { title: '아키텍처', items: [
+                  '인증/인가 애플리케이션과 비즈니스 로직 애플리케이션을 분리하여 **유지보수성 향상**, 독립적으로 관리 및 운영',
+                  'Spring Cloud Gateway 기반 **API Gateway 패턴** 적용',
+                ]},
+                { title: '팀 기여', items: [
+                  'Spring Batch를 활용해 다량의 데이터를 처리하는 **이메일 발송 시스템** 구축',
+                  '신규 입사자들이 서비스를 빠르게 이해할 수 있도록 **온보딩 문서를 작성**하여 팀 내 지식 공유와 효율적인 온보딩 프로세스 지원',
+                ]},
+              ]}
               last
-            >
-              <BulletItem>AI 면접 서비스 백엔드 시스템 운영 및 개발, 인증/인가 모듈 관리</BulletItem>
-              <BulletItem>JPA N+1 해결 및 쿼리 튜닝으로 <Mark>1,000개 → 5개 쿼리</Mark> (90%+ 개선)</BulletItem>
-              <BulletItem>인증/인가 앱과 비즈니스 로직 앱 분리, Spring Cloud Gateway 적용</BulletItem>
-              <BulletItem>Spring Batch 대량 이메일 발송 시스템 구축</BulletItem>
-            </ProjectBlock>
+            />
           </div>
         </ResumeSection>
       </FadeIn>
@@ -213,12 +287,28 @@ export default function ResumePage() {
             period="2024.10 ~ 2024.11"
             description="대규모 트래픽을 고려한 콘서트 예약 서비스. 동시성 제어, 대기열, 이벤트 아키텍처를 종합적으로 설계했습니다."
             skills={['Java', 'Spring Boot', 'MySQL', 'Kafka', 'Redis', 'JPA', 'Docker', 'K6', 'Grafana']}
+            achievements={[
+              { title: '다양한 락을 이용한 동시성 제어', items: [
+                '비관적 · 낙관적 · 분산락(Redisson)을 상황에 맞게 적용하여 **동시성 문제 해결**',
+                '낙관적 락(Optimistic Lock)을 활용해 좌석 예약 시스템의 데이터 정합성 확보',
+                '**동시성 통합 테스트**로 안정성 검증',
+              ]},
+              { title: '대용량 트래픽과 데이터 처리', items: [
+                '**Redis 기반 대기열** 시스템으로 트래픽 유량 제어',
+                '**DB Index 적용을** 통해 대규모 데이터 처리 시 쿼리 성능 최적화(295ms -> 21ms, **14배 이상 성능 향상**)',
+              ]},
+              { title: '이벤트 기반 아키텍처 적용', items: [
+                'Spring Event를 활용해 비관심사 분리',
+                '**Kafka 및 Outbox Pattern을 적용**해 이벤트 기반 아키텍처 구현 및 이벤트 발행 보장',
+                '**K6 부하 테스트 + Grafana** 실시간 모니터링 구축',
+              ]},
+              { title: '성능 테스트 및 모니터링 체계 구축', items: [
+                'K6를 활용하여 **유저 시나리오 기반 부하 테스트 수행**',
+                'Grafana 대시보드를 이용한 실시간 시스템 매트릭 모니터링',
+              ]},
+            ]}
             last
-          >
-            <BulletItem>비관적·낙관적·분산락(Redisson) 상황별 적용으로 <Mark>동시성 제어</Mark></BulletItem>
-            <BulletItem>Redis 기반 대기열 시스템 구축, DB Index로 <Mark>쿼리 성능 14배 향상</Mark> (295ms → 21ms)</BulletItem>
-            <BulletItem>Kafka + Outbox Pattern 이벤트 기반 아키텍처, K6 + Grafana 모니터링 구축</BulletItem>
-          </ProjectBlock>
+          />
         </ResumeSection>
       </FadeIn>
 
@@ -257,17 +347,33 @@ export default function ResumePage() {
             {/* 사내 스터디 */}
             <div>
               <h4 className="text-[14px] font-semibold text-text-primary mb-2">사내 스터디</h4>
-              <FadeInStagger className="space-y-1.5">
-                <BulletItem>MSA 강의 수강 — Spring Boot + Axon Framework + Kafka, Event Sourcing & CQRS 패턴 학습 (<a href="https://github.com/rueun/myFastcampusPay" target="_blank" rel="noopener noreferrer" className="text-[#a78bfa] hover:underline">GitHub</a>)</BulletItem>
-                <BulletItem>미션 기반 코드 리뷰 스터디 — POJO 기반 미션 수행, 코드 리뷰 경험 (<a href="https://github.com/talmood/mission-based-code-review-study" target="_blank" rel="noopener noreferrer" className="text-[#a78bfa] hover:underline">GitHub</a>)</BulletItem>
+              <FadeInStagger className="space-y-2">
+                <BulletItem sub={[
+                  'Spring Boot + Axon Framework + Kafka 프로젝트를 통한 MSA 학습',
+                  'Event Sourcing & CQRS 패턴 학습',
+                ]}>
+                  MSA 강의 수강 (<a href="https://github.com/rueun/myFastcampusPay" target="_blank" rel="noopener noreferrer" className="text-[#a78bfa] hover:underline">GitHub</a>)
+                </BulletItem>
+                <BulletItem sub={[
+                  'POJO 기반의 미션 수행으로 프로그래밍 역량 향상',
+                  '코드 리뷰 과정 경험',
+                  '테스트 코드 작성 실습',
+                ]}>
+                  미션 기반 스터디를 통해 동료들과 함께 성장 (<a href="https://github.com/talmood/mission-based-code-review-study" target="_blank" rel="noopener noreferrer" className="text-[#a78bfa] hover:underline">GitHub</a>)
+                </BulletItem>
               </FadeInStagger>
             </div>
 
             {/* 사내 세미나 */}
             <div>
               <h4 className="text-[14px] font-semibold text-text-primary mb-2">사내 개발 세미나</h4>
-              <FadeInStagger className="space-y-1.5">
-                <BulletItem>인증/인가 발표 — 웹에서의 인증/인가 방식 및 Spring Cloud Gateway 기반 API Gateway 설명</BulletItem>
+              <FadeInStagger className="space-y-2">
+                <BulletItem sub={[
+                  '웹에서의 인증/인가 방식 설명',
+                  'API Gateway 설명 — Spring Cloud Gateway',
+                ]}>
+                  인증/인가 발표
+                </BulletItem>
               </FadeInStagger>
             </div>
           </div>
@@ -303,8 +409,34 @@ function ResumeSection({ number, title, children, last }: { number: string; titl
   )
 }
 
-function ProjectBlock({ title, subtitle, period, description, linkUrl, skills, children, last }: {
-  title: string; subtitle: string; period: string; description?: string; linkUrl?: string; skills: string[]; children: React.ReactNode; last?: boolean
+interface AchievementItem {
+  text: string
+  sub?: string[]
+}
+
+interface Achievement {
+  title: string
+  items: (string | AchievementItem)[]
+}
+
+// **bold** 구문을 Mark 컴포넌트로 변환
+function renderBold(text: string) {
+  const parts = text.split(/\*\*(.*?)\*\*/g)
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <Mark key={i}>{part}</Mark> : part
+  )
+}
+
+function ProjectBlock({ title, subtitle, period, description, linkUrl, skills, achievements, children, last }: {
+  title: string
+  subtitle: string
+  period: string
+  description?: string
+  linkUrl?: string
+  skills: string[]
+  achievements?: Achievement[]
+  children?: React.ReactNode
+  last?: boolean
 }) {
   return (
     <div className={last ? 'pb-6' : 'mb-10 pb-10 border-b border-border-muted'}>
@@ -322,14 +454,35 @@ function ProjectBlock({ title, subtitle, period, description, linkUrl, skills, c
       {description && (
         <p className="text-[12.5px] text-text-secondary leading-[1.6] mb-2">{description}</p>
       )}
-      <div className="flex flex-wrap gap-1 mb-3">
+      <div className="flex flex-wrap gap-1 mb-4">
         {skills.map((s) => (
           <span key={s} className="text-[10.5px] text-[#a78bfa]/70 border border-[#a78bfa]/30 rounded px-1.5 py-0.5">{s}</span>
         ))}
       </div>
-      <FadeInStagger className="space-y-2">
-        {children}
-      </FadeInStagger>
+      {achievements && achievements.length > 0 ? (
+        <div className="space-y-4">
+          {achievements.map((a) => (
+            <div key={a.title}>
+              <h5 className="text-[11.5px] font-bold text-text-primary uppercase tracking-[0.06em] mb-2">
+                {a.title}
+              </h5>
+              <FadeInStagger className="space-y-1.5">
+                {a.items.map((item, i) => {
+                  const text = typeof item === 'string' ? item : item.text
+                  const sub = typeof item === 'string' ? undefined : item.sub
+                  return (
+                    <BulletItem key={i} sub={sub}>{renderBold(text)}</BulletItem>
+                  )
+                })}
+              </FadeInStagger>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <FadeInStagger className="space-y-2">
+          {children}
+        </FadeInStagger>
+      )}
     </div>
   )
 }
@@ -339,17 +492,17 @@ function BulletItem({ children, highlight, sub }: { children: React.ReactNode; h
     <FadeInItem>
       <div className="flex items-start gap-2.5 text-[13.5px] leading-[1.65] text-text-secondary">
         <span className={`mt-[7px] w-1 h-1 rounded-full shrink-0 ${highlight ? 'bg-[#10b981]' : 'bg-text-muted'}`} />
-        <div>
+        <div className="flex-1">
           <span>{children}</span>
           {sub && sub.length > 0 && (
-            <div className="mt-1 space-y-0.5">
+            <ul className="mt-1.5 ml-3 space-y-1 border-l border-border-muted pl-3">
               {sub.map((item, i) => (
-                <div key={i} className="flex items-start gap-2 text-[12.5px] text-text-muted leading-[1.6] ml-1">
-                  <span className="mt-[7px] w-[3px] h-[3px] rounded-full shrink-0 bg-border" />
-                  <span>{item}</span>
-                </div>
+                <li key={i} className="flex items-start gap-2 text-[12.5px] text-text-muted leading-[1.6]">
+                  <span className="mt-[8px] w-[4px] h-px shrink-0 bg-text-muted/60" />
+                  <span>{renderBold(item)}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       </div>
