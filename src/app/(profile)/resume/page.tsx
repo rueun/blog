@@ -139,6 +139,33 @@ export default function ResumePage() {
             </div>
             <p className="text-[13px] text-text-muted mb-6">백엔드 개발자 — 2022.09 ~ 현재</p>
 
+            {/* CK 텀즈 */}
+            <ProjectBlock
+              title="CK 텀즈"
+              subtitle="학술 용어·논문 관리 포털"
+              period="2025.06 ~ 현재"
+              description="동사무소 코드를 포크해 만들어진 레거시 서비스(Maven 단일 모듈 + Thymeleaf)를 Gradle 멀티모듈 클린 아키텍처와 React Router v7 SPA로 전면 리팩토링. Claude Code를 파악·설계·구현·검토 전 과정의 협업 상대로 활용한 AI 주도 리팩토링입니다."
+              skills={['Java', 'Spring Boot', 'MongoDB', 'Gradle Multi-Module', 'Spring Event', 'OpenFeign', 'React Router', 'TypeScript', 'Claude Code']}
+              achievements={[
+                { title: '레거시 정리 · 아키텍처', items: [
+                  'AI로 포크 코드와 실사용 코드를 구분, **리팩토링보다 삭제를 먼저** 진행해 불필요 파일 **354개 제거**',
+                  '**Maven 단일 모듈 → Gradle 멀티모듈 클린 아키텍처** 전환, **빌드 도구로 domain의 프레임워크 의존성을 컴파일 단계에서 차단**',
+                ]},
+                { title: 'AX (AI 주도 리팩토링)', items: [
+                  '**CLAUDE.md(글로벌/프로젝트 2단) + 스킬**로 컨텍스트를 명문화해 반복 설명 제거',
+                  '**코드리뷰 → 기준 도출 → CLAUDE.md 반영** 사이클과 getBy/findBy 등 컨벤션 정립으로 협업 품질 지속 개선',
+                ]},
+                { title: '도메인 모델링', items: [
+                  '**record 불변 VO** + 팩토리·`@Builder(toBuilder=true)` **불변 엔티티**로 도메인 모델 복원',
+                  '**도메인 이벤트**(`@TransactionalEventListener` AFTER_COMMIT)로 알림·로깅 등 부가 관심사 분리',
+                ]},
+                { title: '프론트엔드 신규 구축 (AX)', items: [
+                  '백엔드 개발자로서 **Thymeleaf SSR → React Router v7 SPA** 전면 전환을 **거의 100% AI(Claude Code)로 단독 구축** (FSD + **TanStack Query**)',
+                  '**ck-ui → Tailwind** 우선순위를 CLAUDE.md에 명시해 AI 생성 코드의 디자인 일관성 확보, 프론트 **pre-commit 린트 훅**으로 품질 자동 강제',
+                ]},
+              ]}
+            />
+
             {/* CK TMS */}
             <ProjectBlock
               title="한양사이버대학교 논문지도시스템"

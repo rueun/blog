@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import ProjectCard from '@/components/ProjectCard'
@@ -10,6 +10,14 @@ import PdfDownloadButton from '@/components/PdfDownloadButton'
 type Tab = 'work' | 'personal'
 
 export default function PortfolioPage() {
+  return (
+    <Suspense>
+      <PortfolioContent />
+    </Suspense>
+  )
+}
+
+function PortfolioContent() {
   const searchParams = useSearchParams()
   const isPrint = searchParams.get('print') === 'true'
   const [tab, setTab] = useState<Tab>('work')
@@ -62,6 +70,63 @@ export default function PortfolioPage() {
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard defaultOpen={allOpen}
             number="01"
+            title="CK 텀즈"
+            subtitle="학술 용어·논문 관리 포털"
+            period="2025.06 ~ 현재"
+            type="회사 프로젝트"
+            description="동사무소 코드를 포크해 만들어진 레거시 서비스(Maven 단일 모듈 + Thymeleaf SSR)를 Gradle 멀티모듈 클린 아키텍처와 React Router v7 SPA로 전면 리팩토링했습니다. Claude Code를 코드 파악·정리·설계·구현·검토 전 과정의 협업 상대로 활용한 AI 주도 리팩토링 프로젝트로, 백엔드 설계·개발을 주도하고 프론트엔드를 처음부터 새로 구축했습니다."
+            skills={['Java', 'Spring Boot', 'MongoDB', 'Gradle Multi-Module', 'Spring Event', 'OpenFeign', 'JUnit5', 'Testcontainers', 'React', 'React Router', 'TypeScript', 'TanStack Query', 'Claude Code']}
+            image="/images/portfolio/ck-terms.png"
+            roles={[
+              '포크된 레거시 코드베이스 파악 및 정리 (불필요 파일 354개 삭제)',
+              'Maven 단일 모듈 → Gradle 멀티모듈 클린 아키텍처 전환',
+              'Claude Code 기반 AI 협업 환경(CLAUDE.md·스킬) 구축',
+              '도메인 모델 · Port & Adapter · 도메인 이벤트 설계',
+              'React Router v7 기반 프론트엔드 SPA 신규 구축',
+            ]}
+            achievements={[
+              { title: '레거시 정리', items: [
+                'AI로 포크된 코드(동사무소 원본)와 CK 텀즈 실사용 코드를 구분, **살릴 것과 정리할 것의 경계**를 먼저 확정',
+                { text: '**리팩토링보다 삭제를 먼저** 진행 — 불필요한 파일 **354개 제거**(Thymeleaf 템플릿·정적 에셋·Froala 번들)', sub: [
+                  '죽은 코드를 걷어내자 의존성 흐름과 리팩토링 범위가 선명해짐',
+                ]},
+              ]},
+              { title: 'AX (AI 주도 리팩토링)', items: [
+                '**CLAUDE.md 2단 구성**(글로벌/프로젝트) + index·rules 분리로 컨텍스트 비용 최소화하며 규칙 명문화',
+                'architecture·oop·ddd·testing **스킬**로 대화마다 반복되던 컨벤션 설명을 재사용 가능하게 정리',
+                '**코드리뷰 → 기준 도출 → CLAUDE.md 반영 → 다음 작업 적용** 사이클로 AI 협업 품질을 지속 개선',
+                'getBy/findBy 등 **Repository 컨벤션을 명문화**해 서비스 레이어 예외 처리 중복 제거',
+              ]},
+              { title: '백엔드 아키텍처', items: [
+                '**Maven 단일 모듈 → Gradle 멀티모듈 클린 아키텍처**(application/core/infra/support) 전환',
+                '**빌드 도구가 의존성 방향을 강제** — domain 모듈에서 Spring·JPA 의존성을 제거해 프레임워크 침투를 컴파일 단계에서 차단',
+                '**Port & Adapter 패턴**으로 MongoDB 구현을 인프라 계층에 격리',
+              ]},
+              { title: '도메인 모델링', items: [
+                'DB 컬럼 나열식 클래스를 **record 기반 불변 VO** + 팩토리 메서드·`@Builder(toBuilder=true)` **불변 엔티티**로 재설계',
+                '**도메인 이벤트**(`@TransactionalEventListener` AFTER_COMMIT + `@Async`)로 알림·로깅 등 부가 관심사 분리',
+                'API 버저닝 DTO(`V1Dto`) 및 `*Api`/`*Controller` 역할 분리로 설계 기준 통일',
+              ]},
+              { title: '프론트엔드 신규 구축 (AX)', items: [
+                { text: '백엔드 개발자로서 **Thymeleaf SSR → React Router v7 SPA** 전면 전환을 **거의 100% AI(Claude Code)로 단독 구축**', sub: [
+                  'React·TypeScript 실무 경험이 없는 상태에서, 의도를 설명하면 AI가 코드를 생성하고 본인은 타입·응답 변환·동작을 검토하는 방식으로 진행',
+                ]},
+                '사내 **FSD 스캐폴딩** 기반에 **TanStack Query** 서버 상태 관리, **ck-ui → Tailwind** 우선순위를 CLAUDE.md에 명시해 AI 생성 코드의 디자인 일관성 확보',
+                '프론트 파일 변경 시에만 동작하는 **pre-commit 린트 훅**으로 품질 자동 강제',
+              ]},
+            ]}
+            reflection={[
+              '리팩토링보다 **삭제를 먼저** 했습니다. 포크된 코드에서 살아있는 코드만 남기자 의존성 흐름과 리팩토링 범위가 비로소 선명해졌습니다.',
+              'AI 협업 품질은 결국 **AI를 어떻게 세팅하느냐**가 절반을 결정한다는 걸 체감했습니다. CLAUDE.md와 스킬로 기준을 명문화하니 반복 설명이 사라지고 팀 온보딩 문서 역할까지 했습니다.',
+              '백엔드 개발자로서 React 프론트를 처음부터 만들며, **좋은 스캐폴딩·디자인 시스템·AI**가 함께할 때 낯선 영역도 끝까지 완성할 수 있다는 자신감을 얻었습니다.',
+            ]}
+            reflectionLink={{ label: 'AI로 레거시 서비스 리팩토링하기 시리즈 보기', url: '/posts/ck-terms-01-ai-legacy-code' }}
+          />
+        </div>
+
+        <div className={tab !== 'work' ? 'hidden' : ''}>
+          <ProjectCard defaultOpen={allOpen}
+            number="02"
             title="한양사이버대학교 논문지도시스템"
             subtitle="논문 심사 관리"
             period="2025.12 ~ 2026.03"
@@ -104,7 +169,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard defaultOpen={allOpen}
-            number="02"
+            number="03"
             title="CopyKiller Lite"
             subtitle="표이미지 표절검사"
             period="2025.09 ~ 2025.10"
@@ -142,7 +207,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard defaultOpen={allOpen}
-            number="03"
+            number="04"
             title="CK FactChecker"
             subtitle="뉴스 기사 팩트체크 서비스"
             period="2025.08"
@@ -171,7 +236,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard defaultOpen={allOpen}
-            number="04"
+            number="05"
             title="CopyKiller HR"
             subtitle="ATS (Applicant Tracking System)"
             period="2023.08 ~ 2025.07"
@@ -224,7 +289,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'personal' ? 'hidden' : ''}>
           <ProjectCard defaultOpen={allOpen}
-            number="05"
+            number="06"
             title="콘서트 예약 시스템"
             period="2024.10 ~ 2024.11"
             type="개인 프로젝트"
@@ -263,7 +328,7 @@ export default function PortfolioPage() {
 
         <div className={tab !== 'work' ? 'hidden' : ''}>
           <ProjectCard defaultOpen={allOpen}
-            number="06"
+            number="07"
             title="Monster"
             subtitle="AI 면접 서비스"
             period="2022.09 ~ 2023.09"
