@@ -120,7 +120,7 @@ function PortfolioContent() {
               'AI 협업 품질은 결국 **AI를 어떻게 세팅하느냐**가 절반을 결정한다는 걸 체감했습니다. CLAUDE.md와 스킬로 기준을 명문화하니 반복 설명이 사라지고 팀 온보딩 문서 역할까지 했습니다.',
               '백엔드 개발자로서 React 프론트를 처음부터 만들며, **좋은 스캐폴딩·디자인 시스템·AI**가 함께할 때 낯선 영역도 끝까지 완성할 수 있다는 자신감을 얻었습니다.',
             ]}
-            reflectionLink={{ label: 'AI로 레거시 서비스 리팩토링하기 시리즈 보기', url: '/posts/ck-terms-01-ai-legacy-code' }}
+            reflectionLink={{ label: 'AI로 레거시 서비스 리팩토링하기 시리즈 보기', url: '/posts/ai-legacy-refactor-01-code-discovery' }}
           />
         </div>
 

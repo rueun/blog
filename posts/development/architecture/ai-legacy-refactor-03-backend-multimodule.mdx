@@ -14,16 +14,16 @@ tags:
   - Java
 ---
 
-> 이 글은 CK Terms 서비스 전면 리팩토링 과정을 기록한 시리즈 세 번째 글입니다.
+> 이 글은 한 사내 서비스의 전면 리팩토링 과정을 기록한 시리즈 세 번째 글입니다.
 
 ---
 
 ## 기존 구조가 문제였던 이유
 
-기존 CK Terms 백엔드는 Maven 단일 모듈이었다. 구조를 보면:
+기존 백엔드는 Maven 단일 모듈이었다. 구조를 보면:
 
 ```
-src/main/java/com/muhayu/ck/terms/
+src/main/java/com/example/app/
 ├── controller/     # 컨트롤러 11개
 ├── service/        # 서비스 11개
 ├── data/           # 데이터 클래스 19개
@@ -67,10 +67,10 @@ public class Post {
 리팩토링 후 구조는 이렇다. 실제 `settings.gradle`을 보면:
 
 ```groovy
-rootProject.name = 'ck-terms-backend'
+rootProject.name = 'service-backend'
 
 include(
-        ':application:terms-api',   // REST API 진입점
+        ':application:web-api',   // REST API 진입점
         ':core:common',             // 공통 유틸, 에러 타입
         ':core:domain',             // 순수 도메인 모델
         ':core:service',            // 유스케이스, 비즈니스 로직
@@ -112,7 +112,7 @@ Spring이 없다. JPA가 없다. 순수 Java다.
   <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.5rem 0'}}>의존성은 안쪽(도메인)으로만 흐른다</p>
   <div style={{display: 'flex', alignItems: 'stretch', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap'}}>
     {[
-      {name: 'application', sub: 'terms-api', color: '#3b82f6', bg: '#0f1729'},
+      {name: 'application', sub: 'web-api', color: '#3b82f6', bg: '#0f1729'},
       {name: 'service', sub: '유스케이스', color: '#22c55e', bg: '#0f2318'},
       {name: 'domain', sub: '순수 Java · Spring/JPA 없음', color: '#a78bfa', bg: '#1a1530'},
     ].map(({name, sub, color, bg}, i) => (
