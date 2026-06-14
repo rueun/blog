@@ -1,0 +1,338 @@
+---
+title: "백엔드 리팩토링 — 단일 모놀리식에서 멀티모듈 클린 아키텍처로"
+date: 2026-06-05
+description: "Maven 단일 모듈 + @Data 데이터 클래스 구조를 Gradle 멀티모듈 클린 아키텍처로 전환한 과정. 빌드 도구가 의존성 방향을 강제하고, 도메인 모델에 책임을 돌려준 이야기를 담았습니다."
+series: "AI로 레거시 서비스 리팩토링하기"
+categories:
+  - Development
+  - Architecture
+tags:
+  - Clean Architecture
+  - Domain Driven Design
+  - Multi Module
+  - Spring Boot
+  - Java
+---
+
+> 이 글은 CK Terms 서비스 전면 리팩토링 과정을 기록한 시리즈 세 번째 글입니다.
+
+---
+
+## 기존 구조가 문제였던 이유
+
+기존 CK Terms 백엔드는 Maven 단일 모듈이었다. 구조를 보면:
+
+```
+src/main/java/com/muhayu/ck/terms/
+├── controller/     # 컨트롤러 11개
+├── service/        # 서비스 11개
+├── data/           # 데이터 클래스 19개
+├── config/
+├── util/
+└── (기타 설정 파일들)
+```
+
+언뜻 보면 나쁘지 않아 보이지만, 실제로 들여다보면 문제가 있었다.
+
+**서비스 이름부터 이상했다.** `PostDataService`, `UserDataService`, `OrgDataService` — 이름에 "Data"가 붙어있는 건 서비스가 DB 조작 레이어에 가깝다는 신호다. 비즈니스 로직이 어디 있는지 경계가 불명확했다.
+
+**데이터 클래스도 마찬가지였다.** `Post.java`를 열어보면 이런 식이었다:
+
+```java
+// 리팩토링 전 Post.java
+@Data  // Lombok - getter/setter 전부 열려있음
+public class Post {
+    private Integer srl;
+    private String title;
+    private String content;
+    private String regDt;
+    private Integer hit;
+    private String status;
+    private String boardType;
+    private Integer postCodeSrl;
+    // ...
+}
+```
+
+도메인 객체라고 부르기 어려운 구조다. 필드가 모두 `public`으로 열려있고(`@Data`), 비즈니스 규칙이 하나도 없다. `regDt`가 String인 것도, `status`가 String인 것도 아무 제약이 없다.
+
+이런 구조에서는 비즈니스 규칙이 결국 서비스나 컨트롤러에 흩어지게 된다. `status`가 어떤 값을 가질 수 있는지, 상태 전이가 어떻게 되는지가 코드 어딘가에 조건문으로 박혀있고, 그게 어디 있는지 찾아다녀야 한다.
+
+계층이 명확하지 않으니 어디다 뭘 추가해야 할지 매번 고민해야 했다.
+
+---
+
+## 멀티모듈로 계층을 물리적으로 분리했다
+
+리팩토링 후 구조는 이렇다. 실제 `settings.gradle`을 보면:
+
+```groovy
+rootProject.name = 'ck-terms-backend'
+
+include(
+        ':application:terms-api',   // REST API 진입점
+        ':core:common',             // 공통 유틸, 에러 타입
+        ':core:domain',             // 순수 도메인 모델
+        ':core:service',            // 유스케이스, 비즈니스 로직
+        ':core:web',                // HTTP 응답 DTO
+        ':core:infra:database:mongodb',         // MongoDB 구현체
+        ':core:infra:client:synthy-feign-client', // 외부 API 클라이언트
+        // ... 기타 infra 모듈들
+        ':support:logging',
+        ':support:jackson'
+)
+```
+
+물리적으로 모듈이 나뉘어 있고, 각 모듈의 `build.gradle`이 의존성 방향을 강제한다.
+
+`domain` 모듈의 의존성을 보면:
+
+```groovy
+// core/domain/build.gradle
+dependencies {
+    implementation project(':core:common')
+    implementation 'com.github.f4b6a3:uuid-creator:6.0.0'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+}
+```
+
+Spring이 없다. JPA가 없다. 순수 Java다.
+
+이게 중요한 이유가 있다.
+
+---
+
+## 빌드 도구가 아키텍처를 강제한다
+
+클린 아키텍처의 핵심 원칙 중 하나는 "도메인 계층은 프레임워크에 의존하지 않는다"는 것이다. 그런데 이걸 개발자의 자제력으로만 지키려고 하면 시간이 지나면서 무너진다. 누군가 급해서 도메인 클래스에 `@Entity`를 붙이거나, 서비스 로직 안에서 JPA Repository를 직접 주입하고 싶은 유혹이 생긴다.
+
+멀티모듈 구조에서는 **빌드 도구가 이걸 물리적으로 막아준다.**
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.5rem 0'}}>의존성은 안쪽(도메인)으로만 흐른다</p>
+  <div style={{display: 'flex', alignItems: 'stretch', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap'}}>
+    {[
+      {name: 'application', sub: 'terms-api', color: '#3b82f6', bg: '#0f1729'},
+      {name: 'service', sub: '유스케이스', color: '#22c55e', bg: '#0f2318'},
+      {name: 'domain', sub: '순수 Java · Spring/JPA 없음', color: '#a78bfa', bg: '#1a1530'},
+    ].map(({name, sub, color, bg}, i) => (
+      <div key={name} style={{display: 'flex', alignItems: 'center', gap: '0.6rem'}}>
+        <div style={{background: bg, border: `1px solid ${color}`, borderRadius: '8px', padding: '0.75rem 0.9rem', textAlign: 'center', minWidth: '120px'}}>
+          <div style={{color: color, fontWeight: 700, fontSize: '0.82rem', fontFamily: 'monospace'}}>{name}</div>
+          <div style={{color: '#8b949e', fontSize: '0.62rem', marginTop: '0.25rem'}}>{sub}</div>
+        </div>
+        {i < 2 && <div style={{color: '#4b5563', fontSize: '1.25rem'}}>→</div>}
+      </div>
+    ))}
+  </div>
+  <div style={{display: 'flex', justifyContent: 'center', marginTop: '1rem'}}>
+    <div style={{background: '#1c1208', border: '1px dashed #f97316', borderRadius: '8px', padding: '0.5rem 0.9rem', textAlign: 'center'}}>
+      <span style={{color: '#f97316', fontSize: '0.7rem', fontFamily: 'monospace'}}>infra (mongodb · feign)</span>
+      <span style={{color: '#8b949e', fontSize: '0.62rem', display: 'block', marginTop: '0.2rem'}}>domain이 정의한 Port를 구현 ↑</span>
+    </div>
+  </div>
+</div>
+
+`domain` 모듈에는 JPA 의존성이 없다. 그러니까 `@Entity`, `@Column`, `@Repository` 같은 어노테이션을 `domain` 모듈 코드에서 쓰려고 하면 컴파일부터 안 된다. import조차 안 된다.
+
+<Callout type="tip" title="규칙을 '지키자'가 아니라 '지킬 수밖에 없게'">
+코드 리뷰에서 누가 잡아내지 않아도, CI 빌드 단계에서 자동으로 걸린다. 사람의 자제력에 기대지 않고 구조가 규칙을 강제하게 만드는 것이 멀티모듈의 핵심 가치다.
+</Callout>
+
+---
+
+## 도메인 모델을 살렸다
+
+기존의 `Post.java`가 DB 컬럼을 그대로 옮겨놓은 클래스였다면, 리팩토링 후에는 도메인에 책임을 돌려줬다.
+
+리팩토링 후 `Post` 도메인 구조:
+
+```
+domain/post/
+├── entity/
+│   └── Post.java          # Aggregate Root
+├── vo/
+│   ├── PostId.java
+│   ├── PostTitle.java
+│   ├── PostContent.java
+│   ├── PostTag.java
+│   ├── RevisionNumber.java
+│   └── ...
+├── type/
+│   ├── BoardType.java     # enum
+│   └── SourceType.java    # enum
+├── repository/
+│   └── PostRepository.java  # Port (interface)
+└── event/
+    └── PostUpdatedEvent.java
+```
+
+`PostTitle`을 예로 들면 이렇게 생겼다:
+
+```java
+public record PostTitle(String value) {
+    public PostTitle {
+        value = value == null ? "" : value;
+    }
+}
+```
+
+Java record로 정의된 불변 VO다. 생성 시점에 null을 빈 문자열로 처리한다. 비즈니스 규칙이 더 복잡하다면 여기서 검증 로직이 들어간다.
+
+`Post` 엔티티 자체는 이렇게 생겼다:
+
+```java
+@Getter
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder(access = AccessLevel.PRIVATE, toBuilder = true)
+public class Post {
+    private final PostId id;
+    private final PostCodeId postCodeId;
+    private final PostTitle title;
+    private final PostContent content;
+    private final List<PostTag> tags;
+    private final RevisionNumber revision;
+    private final Audit audit;
+    private final boolean deleted;
+
+    public static Post create(PostCodeId postCodeId, PostTitle title, ...) {
+        return new Post(PostId.generate(), postCodeId, title, ...);
+    }
+
+    public Post update(PostTitle title, PostContent content, List<PostTag> tags) {
+        return this.toBuilder()
+                .title(title)
+                .content(content)
+                .tags(tags)
+                .revision(revision.next())
+                .audit(audit.modified())
+                .build();
+    }
+}
+```
+
+생성자가 `private`이고 팩토리 메서드(`create`, `update`)로만 객체를 만들 수 있다. 모든 필드가 `final`이라 불변이다. 상태를 바꾸고 싶으면 새 객체를 반환한다.
+
+---
+
+## Port & Adapter 패턴 — 인터페이스와 구현을 분리하다
+
+도메인이 데이터베이스에 의존하지 않으려면, 도메인이 DB를 직접 알면 안 된다.
+
+대신 도메인이 **"이런 걸 해줘"** 라고 인터페이스로 계약을 정의하고, 실제 구현은 인프라 계층이 담당하는 방식을 쓴다. 이를 Port & Adapter 패턴이라고 한다.
+
+`PostRepository` 인터페이스는 `domain` 모듈에 있다:
+
+```java
+// core/domain/post/repository/PostRepository.java (Port)
+public interface PostRepository {
+    Optional<Post> findByPostId(PostId postId);
+
+    Post getBy(PostId postId);
+
+    Optional<Post> findBy(PostTitle title);
+
+    PageResult<Post> findBy(BoardType boardType, List<PostCodeId> postCodeIds, PageQuery page);
+
+    Post save(Post post);
+}
+```
+
+Spring도 없고, MongoDB도 없다. 순수 도메인 언어로 "어떤 걸 조회할 수 있는지"만 정의한다.
+
+실제 MongoDB 구현체는 `infra` 모듈에 있다:
+
+```
+core/infra/database/mongodb/
+└── post/
+    └── repository/
+        └── PostRepositoryImpl.java  # Adapter
+```
+
+여기서 실제 MongoDB 쿼리 로직이 들어간다. 나중에 MongoDB를 다른 DB로 교체해야 한다면 `PostRepositoryImpl`만 교체하면 된다. 도메인 코드는 건드리지 않아도 된다.
+
+---
+
+## 이벤트 기반 설계 — 느슨한 결합
+
+기능이 늘어나면서 "A가 일어났을 때 B도 해야 해" 같은 요구가 생긴다.
+
+예를 들어 논문 서지 등록 신청이 제출되면:
+- Google Chat으로 알림을 보내야 하고
+- 로그를 남겨야 한다
+
+이걸 서비스에 직접 다 박으면 어떻게 될까:
+
+```java
+// 이런 식으로 쌓이기 시작한다
+public RegistrationRequest submit(SubmitCommand command) {
+    RegistrationRequest saved = repository.save(...);
+    googleChatNotifier.notify(saved);  // 서비스가 알림 책임도 짐
+    logger.logSubmission(saved);
+    return saved;
+}
+```
+
+기능이 늘어날수록 서비스가 비대해진다. 등록 신청 저장이라는 핵심 관심사와 알림, 로깅 같은 부가 관심사가 뒤섞인다.
+
+도메인 이벤트를 쓰면 이걸 분리할 수 있다:
+
+```java
+// domain 모듈
+public record RegistrationRequestSubmittedEvent(RegistrationRequest request) {}
+
+// service 모듈
+public RegistrationRequest submit(SubmitCommand command) {
+    RegistrationRequest saved = repository.save(...);
+    eventPublisher.publishEvent(new RegistrationRequestSubmittedEvent(saved));
+    return saved;  // 서비스는 저장만 책임진다
+}
+
+// application 모듈 - 이벤트 리스너
+@Async
+@TransactionalEventListener(phase = AFTER_COMMIT)
+public void onSubmitted(RegistrationRequestSubmittedEvent event) {
+    notificationSender.send(event.request(), postCodeName);
+}
+```
+
+서비스는 "저장하고 이벤트를 발행했다"는 사실만 안다. 그 이벤트를 받아서 뭘 하는지는 관심 없다. 나중에 "등록 신청 시 이메일도 보내달라"는 요구가 생기면, 리스너를 하나 더 추가하면 된다. 서비스 코드는 손대지 않아도 된다.
+
+<Callout type="info" title="AFTER_COMMIT 으로 발행하는 이유">
+`@TransactionalEventListener(phase = AFTER_COMMIT)`는 트랜잭션이 정상 커밋된 뒤에만 리스너를 실행한다. 저장이 롤백되면 알림도 나가지 않는다. 부가 작업이 핵심 트랜잭션의 성공 여부에 안전하게 묶이는 것이다.
+</Callout>
+
+---
+
+## API 설계 기준을 명확히 정했다
+
+기존엔 `PostController`가 페이지 렌더링과 API 응답을 같이 하고 있었다. 리팩토링 후에는 역할을 분리했다.
+
+- `*Controller` — 기존 Thymeleaf 페이지 렌더링 (마이그레이션 완료 전까지 유지)
+- `*Api` — 새로 만드는 REST API
+
+새 API는 모두 `/api/v1/...` 기준이고, DTO 네이밍도 통일했다:
+
+```
+CreatePostV1Dto       # 요청 DTO
+GetPostDetailV1Dto    # 응답 DTO
+GetPostListV1Dto      # 목록 응답 DTO
+```
+
+버전을 이름에 넣는 건 처음엔 과한 것 같았는데, 나중에 응답 구조를 바꿔야 할 때 `V2Dto`를 추가하면 된다는 게 명확해지니까 오히려 편했다.
+
+---
+
+## AI는 "두 번째 의견" 역할이었다
+
+백엔드 리팩토링에서 AI를 쓴 방식은 앞 단계와 좀 달랐다.
+
+코드 자체를 AI가 다 짜준 게 아니라, 설계 결정을 할 때마다 **두 번째 의견**으로 활용했다.
+
+"이 로직이 서비스에 있어야 하는지 도메인에 있어야 하는지" 의심될 때 물어보거나, "이 컨벤션이 나중에 문제가 될 수 있는지" 확인하거나. 혼자 설계할 때 놓치기 쉬운 부분들을 빠르게 검토할 수 있었다.
+
+특히 "Port와 Adapter의 경계를 어디서 그어야 하는지", "이 이벤트를 도메인 이벤트로 만들어야 하는지 아니면 애플리케이션 이벤트로 만들어야 하는지" 같은 결정에서 도메인 스킬과 아키텍처 스킬을 로드해서 기준을 빠르게 확인했다.
+
+---
+
+다음 글에서는 백엔드 개발자가 AI를 앞세워 **React 프론트엔드를 처음부터 만든 이야기**를 씁니다.

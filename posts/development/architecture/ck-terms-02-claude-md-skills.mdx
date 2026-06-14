@@ -1,0 +1,257 @@
+---
+title: "AI 협업 환경 세팅 — CLAUDE.md와 스킬로 컨텍스트 유지하기"
+date: 2026-05-22
+description: "새 대화마다 리셋되는 AI의 컨텍스트 문제를 CLAUDE.md와 스킬로 해결한 이야기. getBy/findBy 컨벤션이 만들어지고 즉시 협업에 반영되는 과정을 기록했습니다."
+series: "AI로 레거시 서비스 리팩토링하기"
+categories:
+  - Development
+  - Architecture
+tags:
+  - AI
+  - Claude Code
+  - Refactoring
+  - Convention
+  - Spring Boot
+---
+
+> 이 글은 CK Terms 서비스 전면 리팩토링 과정을 기록한 시리즈 두 번째 글입니다.
+
+---
+
+## AI랑 일하면서 가장 불편한 것
+
+AI와 협업하다 보면 금방 부딪히는 문제가 있다.
+
+**대화를 새로 시작하면 맥락이 사라진다.**
+
+어제 내가 "이 프로젝트에서 컨트롤러는 얇게 유지하고 비즈니스 로직은 서비스로"라고 얘기했어도, 오늘 새 대화를 열면 AI는 그 얘기를 모른다. 작업하다가 기준이 바뀌어도 다시 설명해야 한다. 같은 말을 매번 반복하는 게 은근히 피곤하다.
+
+처음엔 그냥 받아들이고 썼다. 그런데 한두 번이면 모르겠는데, 일주일 동안 매일 같은 프로젝트 컨벤션 설명을 반복하다 보니 뭔가 잘못됐다는 생각이 들었다.
+
+특히 이런 상황이 반복됐다. 새 대화를 열고 Repository 메서드를 만들어달라고 하면, AI가 이런 코드를 제안한다:
+
+```java
+public Post getPostById(String id) {
+    return postRepository.findById(id)
+        .orElseThrow(() -> new CoreException(CommonErrorType.NOT_FOUND));
+}
+```
+
+서비스 레이어에서 `findBy().orElseThrow()`를 직접 쓰는 방식인데, 이 프로젝트에서는 이 패턴을 쓰지 않기로 정해뒀었다. "없으면 예외"는 Repository가 책임져야 하고, 서비스는 그냥 `getBy`를 호출하면 되는 구조로 정했기 때문이다. 그런데 이 기준이 대화마다 리셋되니까 매번 나온 코드를 수정하거나 다시 설명해야 했다.
+
+이걸 해결하는 방법이 `CLAUDE.md`와 스킬이다.
+
+---
+
+## CLAUDE.md — 프로젝트 규칙을 파일로 박아두기
+
+`CLAUDE.md`는 Claude Code가 프로젝트 루트에서 자동으로 읽는 파일이다. 대화를 시작할 때마다 자동으로 컨텍스트로 주입된다.
+
+한 가지 중요한 점이 있다. **CLAUDE.md는 짧아야 한다.**
+
+<Callout type="warning" title="규칙을 다 때려넣으면 역효과">
+Claude Code는 대화 컨텍스트에 이 파일을 통째로 집어넣기 때문에, 파일이 길어질수록 컨텍스트 비용이 커진다. 규칙이 많다고 해서 여기에 다 때려넣으면 오히려 성능이 떨어진다.
+</Callout>
+
+그래서 CLAUDE.md는 **목차(index)** 역할만 하도록 짧게 유지하고, 실제 규칙 내용은 별도 파일에 분리해서 링크로 연결하는 방식을 쓴다.
+
+<div style={{background: '#0d1117', border: '1px solid #30363d', borderRadius: '12px', padding: '1.5rem', margin: '1.5rem 0'}}>
+  <p style={{textAlign: 'center', color: '#6b7280', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 1.25rem 0'}}>CLAUDE.md는 목차, 규칙은 분리</p>
+  <div style={{display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center'}}>
+    <div style={{background: '#1a1530', border: '1px solid #a78bfa', borderRadius: '8px', padding: '0.75rem 1rem', textAlign: 'center', minWidth: '150px'}}>
+      <div style={{color: '#a78bfa', fontWeight: 700, fontSize: '0.85rem'}}>CLAUDE.md</div>
+      <div style={{color: '#8b949e', fontSize: '0.65rem', marginTop: '0.2rem'}}>짧은 목차 · 자동 주입</div>
+    </div>
+    <div style={{color: '#4b5563', fontSize: '1.5rem'}}>→</div>
+    <div style={{display: 'grid', gap: '0.4rem'}}>
+      {['api-design.md', 'repository.md', 'architecture.md', 'frontend.md'].map((f) => (
+        <div key={f} style={{background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.35rem 0.7rem', fontSize: '0.7rem', color: '#22c55e', fontFamily: 'monospace'}}>rules/{f}</div>
+      ))}
+    </div>
+  </div>
+  <p style={{textAlign: 'center', color: '#8b949e', fontSize: '0.72rem', margin: '1.25rem 0 0 0'}}>AI가 작업 중 특정 규칙이 필요하면 해당 파일만 참조한다</p>
+</div>
+
+CLAUDE.md는 이런 식으로 간결하게 유지한다:
+
+```markdown
+# CK Terms 작업 노트
+
+현재 합의된 기준을 정리한 메모다.
+
+- API 설계 원칙 → @.claude/rules/api-design.md
+- Repository 컨벤션 → @.claude/rules/repository.md
+- 아키텍처 원칙 → @.claude/rules/architecture.md
+- 프론트엔드 원칙 → @.claude/rules/frontend.md
+```
+
+실제 규칙은 각 파일에 상세하게 담아두고, CLAUDE.md는 어디에 뭐가 있는지만 가리킨다. AI가 작업 중 특정 규칙이 필요하면 해당 파일을 참조한다.
+
+예를 들어 Repository 컨벤션 파일은 이런 식으로 생겼다:
+
+```markdown
+# Repository 메서드 컨벤션
+
+## getBy vs findBy
+
+- `getBy(...)` : 없으면 `CoreException.notFound(...)` 예외를 던진다. 반환 타입은 도메인 객체.
+- `findBy(...)` : 없어도 예외를 던지지 않는다. 반환 타입은 `Optional<T>`.
+
+## 금지 패턴
+
+서비스 레이어에서 `findBy(...).orElseThrow(...)` 패턴은 금지.
+반드시 Repository에 `getBy` 메서드를 추가하고 서비스에서 그걸 호출해야 한다.
+
+## 이유
+
+notFound 에러는 Repository에서만 던진다. 서비스가 "없으면 예외" 책임까지 지면
+같은 패턴이 서비스마다 중복되고, 에러 처리 위치가 흩어진다.
+```
+
+### 글로벌 CLAUDE.md와 프로젝트 CLAUDE.md
+
+CLAUDE.md는 두 레벨로 관리할 수 있다.
+
+- **글로벌** (`~/.claude/CLAUDE.md`) — 모든 프로젝트에 공통으로 적용
+- **프로젝트** (`./CLAUDE.md`) — 해당 프로젝트에만 적용
+
+글로벌 CLAUDE.md에는 언어나 프로젝트와 무관하게 어디서나 지켜야 할 기준을 두었다. 클린 아키텍처 원칙, 객체지향 설계 원칙, 팩토리 메서드 패턴, 네이밍 컨벤션 등이 여기에 있다. Spring 프로젝트든 다른 프로젝트든 이 기준은 공통으로 적용된다.
+
+프로젝트 CLAUDE.md에는 CK Terms에만 해당하는 기준을 두었다. API 경로 규칙, 프론트엔드 스택 선택, 마이그레이션 원칙, 모듈별 역할 등이 여기에 있다. 이 파일은 레포지터리에 체크인되어 있어서, 나중에 다른 팀원이 Claude Code를 쓸 때도 같은 기준을 자동으로 받게 된다.
+
+### `getBy` / `findBy` 컨벤션이 생긴 과정
+
+이 컨벤션이 처음부터 있었던 건 아니다.
+
+초반에 작업하다 보니 서비스 레이어 코드가 이런 식으로 쌓이기 시작했다:
+
+```java
+// 서비스 레이어 여기저기서 이 패턴이 반복됐다
+Post post = postRepository.findById(id)
+    .orElseThrow(() -> CoreException.notFound("Post", new Key("postId", id)));
+
+RegistrationRequest request = registrationRequestRepository.findById(id)
+    .orElseThrow(() -> CoreException.notFound("RegistrationRequest", new Key("id", id)));
+```
+
+"없으면 예외"를 서비스 레이어가 책임지고 있고, 같은 패턴이 서비스마다 중복되는 구조다. 이걸 보고 "이건 안 되겠다" 싶어서 컨벤션을 정했다:
+
+- `findBy` — `Optional<T>` 반환. 없어도 예외 없음
+- `getBy` — 도메인 객체 반환. 없으면 Repository가 직접 `CoreException.notFound()` 던짐
+
+그리고 바로 CLAUDE.md에 추가했다. 추가 후 다음 대화부터는 AI가 이 기준에 맞게 코드를 제안하기 시작했다:
+
+```java
+// CLAUDE.md 추가 이후 AI가 생성한 코드
+public void processPost(String id) {
+    Post post = postRepository.getBy(new PostId(id)); // notFound는 Repository 안에서
+    // ...
+}
+```
+
+<Callout type="tip" title="MD 업데이트 → 다음 대화부터 바로 반영">
+기준이 머릿속에만 있는 게 아니라 파일로 명문화되고, 명문화된 기준이 AI 협업에 즉시 반영된다. 이게 생각보다 굉장히 편하다.
+</Callout>
+
+---
+
+## 스킬 — 반복되는 지시를 재사용 가능하게
+
+Claude Code에는 스킬(Skill)이라는 개념이 있다. 복잡한 지시나 작업 방식을 미리 정의해두고, `/스킬명` 으로 불러다 쓰는 것이다.
+
+이 프로젝트 작업을 위해 몇 가지 스킬을 만들어뒀다.
+
+### architecture 스킬
+
+Spring Boot 멀티모듈 클린 아키텍처 기준을 담고 있다. 어느 계층에 무엇을 두는지, 의존성이 어느 방향으로 흘러야 하는지, 새 파일을 만들 때 어느 패키지에 두어야 하는지 판단 기준이 들어있다.
+
+새 기능을 추가할 때 이 스킬을 불러오면, AI가 이 기준에 맞게 파일 위치를 제안한다. "이거 도메인 계층이에요, 서비스 계층이에요?"를 반복해서 묻지 않아도 된다.
+
+### oop 스킬
+
+SOLID 원칙, 팩토리 메서드 패턴, Value Object 패턴, Builder 패턴 활용 기준 등 객체지향 설계 원칙을 담고 있다. 클래스를 새로 설계하거나 기존 코드를 리팩토링할 때 불러온다.
+
+### testing 스킬
+
+테스트 작성 방식이 담겨있다. Fixture 기반 테스트 데이터 구성, `@Nested` 계층적 테스트 구조, 계층별 테스트 전략이 정의되어 있다.
+
+예를 들어 이 스킬이 있으면 AI가 테스트 코드를 제안할 때 이런 구조로 일관되게 생성한다:
+
+```java
+@DisplayName("게시글 등록 서비스")
+class CreatePostServiceTest {
+
+    @Nested
+    @DisplayName("create()")
+    class Create {
+
+        @Nested
+        @DisplayName("유효한 요청이 들어오면")
+        class WithValidCommand {
+
+            @BeforeEach
+            void setUp() { /* Fixture 세팅 */ }
+
+            @Test
+            @DisplayName("게시글이 저장된다")
+            void savesPost() { ... }
+        }
+    }
+}
+```
+
+스킬 없이 그냥 "테스트 코드 짜줘"라고 하면 대화마다 테스트 구조가 다르게 나온다. 스킬이 있으면 일관된 방식으로 수렴한다.
+
+### ddd 스킬
+
+도메인 주도 설계 판단 기준이 담겨있다. "이게 Entity인지 Value Object인지", "이 로직이 도메인에 있어야 하는지 서비스에 있어야 하는지" 같은 결정을 할 때 참조한다. 새 도메인 모델을 설계할 때 이 스킬을 먼저 불러오면 판단 기준이 빠르게 잡힌다.
+
+---
+
+## CLAUDE.md가 실제로 작동한 순간
+
+막연하게 "효과가 있다"고 하면 실감이 안 날 수 있으니 구체적인 사례를 하나 들겠다.
+
+리팩토링 중 논문 등록 신청 기능을 새로 만들 일이 있었다. 새 대화를 열고 작업을 시작했는데, AI가 제안한 코드가 이랬다:
+
+```java
+@RestController
+@RequestMapping("/api/v1/registration-requests")
+public class RegistrationRequestApi {
+
+    @PostMapping("/research-papers")
+    @ResponseStatus(HttpStatus.CREATED)
+    public RestApiResponse<SubmitResearchPaperRegistrationRequestResponse> submitResearchPaper(
+            @RequestBody SubmitResearchPaperRegistrationRequestRequest request) {
+        return RestApiResponse.created(submitResearchPaperService.submit(request.toCommand()));
+    }
+}
+```
+
+컨트롤러가 얇다. 비즈니스 로직 없이 서비스를 호출하고 응답을 반환한다. API 경로는 `/api/v1/...`로 시작하고 복수형이다. 컨트롤러 이름은 `~Api`다.
+
+내가 이 대화에서 이 기준들을 설명한 적이 없다. CLAUDE.md에 있었기 때문에 AI가 처음부터 맞게 제안한 것이다.
+
+CLAUDE.md가 없었다면 먼저 "/api/v1 써줘", "컨트롤러 이름 Api로 해줘", "컨트롤러에 로직 넣지 말고 서비스로 빼줘" 이걸 하나씩 지시하거나, 나온 코드를 수정하는 과정을 거쳤을 것이다.
+
+---
+
+## 결과적으로 달라진 것
+
+이 세팅을 갖추고 나서 작업 흐름이 바뀐 게 체감됐다.
+
+| 이전 | 이후 |
+|---|---|
+| 새 대화마다 프로젝트 구조 설명 | CLAUDE.md가 자동으로 컨텍스트 제공 |
+| 매번 같은 기준 반복 설명 | 스킬 한 번 호출로 대체 |
+| 기준이 머릿속에만 있음 | MD 파일로 명문화, 팀과 공유 가능 |
+| AI 제안이 기준에서 벗어남 | MD 기반으로 일관된 제안 |
+| 컨벤션 결정 후 매번 다시 설명 | MD 업데이트 한 번으로 이후 자동 적용 |
+
+AI랑 협업할 때 가장 중요한 건 **AI를 얼마나 잘 세팅해두느냐**인 것 같다. 좋은 도구도 설정이 엉망이면 효과가 반감된다.
+
+그리고 CLAUDE.md를 유지하다 보면 부수적인 효과도 생긴다. 기준이 파일로 남으니까 "우리 이 프로젝트에서 이건 어떻게 하기로 했지?" 싶을 때 파일을 열어보면 된다. 팀에 새 사람이 합류할 때 이 파일이 온보딩 문서 역할을 하기도 한다.
+
+---
+
+다음 글에서는 본격적인 백엔드 리팩토링 — **단일 모놀리식에서 멀티모듈 클린 아키텍처로 전환**한 이야기를 씁니다.
